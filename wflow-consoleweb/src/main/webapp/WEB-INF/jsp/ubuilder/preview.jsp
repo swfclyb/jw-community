@@ -51,7 +51,7 @@
             UI.userview_id = '${userview.properties.id}';
         </script>
 
-        <link href="${pageContext.request.contextPath}/css/userview.css?build=<fmt:message key="build.number"/>" rel="stylesheet" type="text/css" />
+        <link href="${pageContext.request.contextPath}/wro/userview.min.css?build=<fmt:message key="build.number"/>" rel="stylesheet" type="text/css" />
         <link rel="shortcut icon" href="${pageContext.request.contextPath}/images/favicon_uv.ico"/>
         <style type="text/css">
             <c:if test="${param.embed}">
@@ -213,5 +213,6 @@
                 <input type="hidden" name="json" value="<c:out value="${json}"/>"/>
             </form>
         </div>
+        <jsp:include page="/WEB-INF/jsp/includes/csrf.jsp" flush="true" />    
     </body>
 </html>

@@ -482,7 +482,7 @@ public class StandardPanelValidator implements PanelValidator {
             }
             m = this.getClass().getMethod("validatePanel", new Class[]{cl, XMLPanel.class});
             return ((Boolean) m.invoke(this, new Object[]{el, panel})).booleanValue();
-        } catch (Throwable e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
@@ -562,7 +562,7 @@ public class StandardPanelValidator implements PanelValidator {
         boolean isValid = XMLUtil.isIdValid(newId);
 
         //check for period (.)
-        if(isValid && newId.contains(".")){
+        if(isValid && newId != null && newId.contains(".")){
             isValid = false;
         }
 

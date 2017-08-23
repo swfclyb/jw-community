@@ -32,7 +32,7 @@
                       var="userDataTable"
                       divToUpdate="userList"
                       jsonData="data"
-                      rowsPerPage="10"
+                      rowsPerPage="15"
                       width="100%"
                       height="200"
                       sort="firstName"
@@ -61,6 +61,9 @@
     </div>
 </div>
 <script>
+    $(document).ready(function(){
+        $('#userDataTable_searchTerm').hide();
+    });
     function submitUser(username){
         if(username.length > 0){
             if (confirm("<fmt:message key="console.monitoring.running.label.reassign.confirm"/>")) {
@@ -73,12 +76,19 @@
                 if($('#replaceUser option[value="'+username+'"]').length > 0){
                     alert('<fmt:message key="console.monitoring.running.label.reassign.error"/>');
                 }else{
-                    var params = "username=" + username + "<c:url value="&state=${state}&processDefId=${processDefId}&activityId=${activityId}&processId=${processId}&replaceUser="/>" + escape(replaceUser);
+                    var params = "username=" + username + "&state=<c:out value="${state}"/>&processDefId=<c:out value="${processDefId}"/>&activityId=<c:out value="${activityId}"/>&processId=<c:out value="${processId}"/>&replaceUser=" + escape(replaceUser);
                     ConnectionManager.post('${pageContext.request.contextPath}/web/json/monitoring/running/activity/reassign', callback, params);
                 }
             }
         }
     }
+    
+    var org_filter = window.filter;
+    var filter = function(jsonTable, url, value){
+        url = "&orgId=" + $('#userDataTable_filterbyOrg').val();
+        url += "&name=" + $('#userDataTable_searchCondition').val();
+        org_filter(jsonTable, url, '');
+    };
 </script>
 
 <commons:popupFooter />

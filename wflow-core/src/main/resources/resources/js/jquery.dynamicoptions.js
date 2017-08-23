@@ -5,15 +5,21 @@
             if($(target)){
                 $('[name='+o.controlField+']').addClass("control-field");
                 
+                var showHideChange = function() {
+                    showHideOption(target, o);
+                };
+                
+                var ajaxChange = function() {
+                    ajaxOptions(target, o);
+                };
+                
                 if (o.nonce === '') {
-                    $('[name='+o.controlField+']').live("change", function(){
-                        showHideOption(target, o);
-                    });
+                    $('body').off("change", '[name='+o.controlField+']', showHideChange);
+                    $('body').on("change", '[name='+o.controlField+']', showHideChange);
                     showHideOption(target, o);
                 } else {
-                    $('[name='+o.controlField+']').live("change", function(){
-                        ajaxOptions(target, o);
-                    });
+                    $('body').off("change", '[name='+o.controlField+']', ajaxChange);
+                    $('body').on("change", '[name='+o.controlField+']', ajaxChange);
                     ajaxOptions(target, o);
                 }
             }
@@ -53,6 +59,9 @@
             function(data){
                 if (o.type === "selectbox") {
                     var options = "";
+                    if ($(target).find("option.label").length > 0) {
+                        options = $("<select>").append($(target).find("option.label").clone()).html();
+                    }
                     for (var i=0, len=data.length; i < len; i++) {
                         var selected = "";
                         if ($.inArray(UI.escapeHTML(data[i].value), values) !== -1) {
@@ -68,7 +77,7 @@
                         if ($.inArray(UI.escapeHTML(data[i].value), values) !== -1) {
                             checked = "checked=\"checked\"";
                         }
-                        options += "<label><input "+checked+" id=\""+o.paramName+"\" name=\""+o.paramName+"\" type=\""+o.type+"\" value=\""+UI.escapeHTML(data[i].value)+"\" />"+UI.escapeHTML(data[i].label)+"</label>";
+                        options += "<label tabindex=\"0\" ><input "+checked+" id=\""+o.paramName+"\" name=\""+o.paramName+"\" type=\""+o.type+"\" value=\""+UI.escapeHTML(data[i].value)+"\" /><i></i>"+UI.escapeHTML(data[i].label)+"</label>";
                     }
                     $(target).html(options);
                     
@@ -78,7 +87,9 @@
                         });         
                     }
                 }
-                $('[name='+o.paramName+']').trigger("change");
+                if (!$(target).is(".section-visibility-disabled")) {
+                    $('[name='+o.paramName+']:not(.section-visibility-disabled)').trigger("change");
+                }
             }
         );
     }
@@ -88,13 +99,13 @@
         var values = getValues(o.paramName);
         
         if ($(target).is("select")) {
-            if ($(target).closest(".form-cell, .subform-cell").find('select.dynamic_option_container').length == 0) {
+            if ($(target).closest(".form-cell, .subform-cell, .filter-cell").find('select.dynamic_option_container').length == 0) {
                 $(target).after('<div class="ui-screen-hidden"><select class="dynamic_option_container" style="display:none;">'+$(target).html()+'</select></div>');
             }
             
-            $(target).html($(target).closest(".form-cell, .subform-cell").find('select.dynamic_option_container').html());
+            $(target).html($(target).closest(".form-cell, .subform-cell, .filter-cell").find('select.dynamic_option_container').html());
             
-            $(target).find("option").each(function(){
+            $(target).find("option:not(.label)").each(function(){
                 var option = $(this);
                 if ($(option).attr("grouping") != "" && $.inArray($(option).attr("grouping"), controlValues) == -1) {
                     $(option).remove();
@@ -119,6 +130,8 @@
                 }
             });
         }
-        $('[name='+o.paramName+']').trigger("change");
+        if (!$(target).is(".section-visibility-disabled")) {
+            $('[name='+o.paramName+']:not(.section-visibility-disabled)').trigger("change");
+        }
     }
 })(jQuery);

@@ -12,25 +12,41 @@ import java.util.Map;
 import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import org.apache.commons.lang.StringEscapeUtils;
+import org.joget.apps.app.dao.AppResourceDao;
 import org.joget.apps.app.dao.FormDefinitionDao;
 import org.joget.apps.app.model.AppDefinition;
+import org.joget.apps.app.model.AppResource;
 import org.joget.apps.app.model.FormDefinition;
 import org.joget.apps.app.model.PackageActivityForm;
+import org.joget.apps.app.service.AppResourceUtil;
 import org.joget.apps.app.service.AppService;
 import org.joget.apps.app.service.AppUtil;
+import org.joget.apps.form.model.Element;
+import org.joget.apps.form.model.FileDownloadSecurity;
 import org.joget.apps.form.model.Form;
 import org.joget.apps.form.model.FormData;
+import org.joget.apps.form.model.FormRow;
+import org.joget.apps.form.model.FormRowSet;
 import org.joget.apps.form.service.FileUtil;
 import org.joget.apps.form.service.FormService;
+import org.joget.apps.form.service.FormUtil;
 import org.joget.apps.userview.lib.RunProcess;
+import org.joget.apps.userview.model.UserviewPermission;
 import org.joget.apps.workflow.lib.AssignmentCompleteButton;
 import org.joget.apps.workflow.lib.AssignmentWithdrawButton;
+import org.joget.commons.util.FileManager;
 import org.joget.commons.util.LogUtil;
+import org.joget.commons.util.SecurityUtil;
+import org.joget.plugin.base.Plugin;
+import org.joget.plugin.base.PluginManager;
+import org.joget.plugin.property.service.PropertyUtil;
 import org.joget.workflow.model.WorkflowActivity;
 import org.joget.workflow.model.WorkflowAssignment;
 import org.joget.workflow.model.WorkflowProcess;
 import org.joget.workflow.model.WorkflowProcessResult;
 import org.joget.workflow.model.service.WorkflowManager;
+import org.joget.workflow.model.service.WorkflowUserManager;
 import org.joget.workflow.util.WorkflowUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -50,11 +66,20 @@ public class AppWebController {
     private WorkflowManager workflowManager;
     @Autowired
     FormDefinitionDao formDefinitionDao;
+    @Autowired
+    AppResourceDao appResourceDao;
+    @Autowired
+    PluginManager pluginManager;
+    @Autowired
+    private WorkflowUserManager workflowUserManager;
 
     @RequestMapping("/client/app/(*:appId)/(~:version)/process/(*:processDefId)")
     public String clientProcessView(HttpServletRequest request, ModelMap model, @RequestParam("appId") String appId, @RequestParam(required = false) String version, @RequestParam String processDefId, @RequestParam(required = false) String recordId, @RequestParam(required = false) String start) {
 
         // clean process def
+        appId = SecurityUtil.validateStringInput(appId);        
+        processDefId = SecurityUtil.validateStringInput(processDefId);        
+        recordId = SecurityUtil.validateStringInput(recordId);        
         processDefId = WorkflowUtil.getProcessDefIdWithoutVersion(processDefId);
         
         AppDefinition appDef = appService.getAppDefinition(appId, version);
@@ -77,23 +102,21 @@ public class AppWebController {
         formData = formService.retrieveFormDataFromRequest(formData, request);
         formData.setPrimaryKeyValue(recordId);
         
-        String formUrl = "/web/client/app/" + appId + "/" + appDef.getVersion() + "/process/" + processDefId + "/start";
+        String formUrl = "/web/client/app/" + appDef.getId() + "/" + appDef.getVersion() + "/process/" + StringEscapeUtils.escapeHtml(processDefId) + "/start";
         if (recordId != null) {
-            formUrl += "?recordId=" + recordId;
+            formUrl += "?recordId=" + StringEscapeUtils.escapeHtml(recordId);
         }
         String formUrlWithContextPath = AppUtil.getRequestContextPath() + formUrl;
         
-        PackageActivityForm startFormDef = appService.viewStartProcessForm(appId, appDef.getVersion().toString(), processDefId, formData, formUrlWithContextPath);
+        PackageActivityForm startFormDef = appService.viewStartProcessForm(appDef.getId(), appDef.getVersion().toString(), processDefId, formData, formUrlWithContextPath);
         if (startFormDef != null && startFormDef.getForm() != null) {
             Form startForm = startFormDef.getForm();
 
             // generate form HTML
             String formHtml = formService.retrieveFormHtml(startForm, formData);
-            String formJson = formService.generateElementJson(startForm);
 
             // show form
             model.addAttribute("form", startForm);
-            model.addAttribute("formJson", formJson);
             model.addAttribute("formHtml", formHtml);
             return "client/app/processFormStart";
         } else {
@@ -133,6 +156,8 @@ public class AppWebController {
     public String clientProcessStart(HttpServletRequest request, ModelMap model, @RequestParam("appId") String appId, @RequestParam(required = false) String version, @RequestParam(required = false) String recordId, @RequestParam String processDefId) {
 
         // clean process def
+        appId = SecurityUtil.validateStringInput(appId);        
+        recordId = SecurityUtil.validateStringInput(recordId);        
         processDefId = WorkflowUtil.getProcessDefIdWithoutVersion(processDefId);
 
         // set app and process details
@@ -156,12 +181,12 @@ public class AppWebController {
 
         // get workflow variables
         Map<String, String> variableMap = AppUtil.retrieveVariableDataFromRequest(request);
-        String formUrl = AppUtil.getRequestContextPath() + "/web/client/app/" + appId + "/" + appDef.getVersion() + "/process/" + processDefId + "/start";
+        String formUrl = AppUtil.getRequestContextPath() + "/web/client/app/" + appDef.getId() + "/" + appDef.getVersion() + "/process/" + processDefId + "/start";
         if (recordId != null) {
             formUrl += "?recordId=" + recordId;
         }
-        PackageActivityForm startFormDef = appService.viewStartProcessForm(appId, appDef.getVersion().toString(), processDefId, formData, formUrl);
-        WorkflowProcessResult result = appService.submitFormToStartProcess(appId, version, processDefId, formData, variableMap, recordId, formUrl);
+        PackageActivityForm startFormDef = appService.viewStartProcessForm(appDef.getId(), appDef.getVersion().toString(), processDefId, formData, formUrl);
+        WorkflowProcessResult result = appService.submitFormToStartProcess(appDef.getId(), appDef.getVersion().toString(), processDefId, formData, variableMap, recordId, formUrl);
         if (startFormDef != null && (startFormDef.getForm() != null || PackageActivityForm.ACTIVITY_FORM_TYPE_EXTERNAL.equals(startFormDef.getType()))) {
             if (result == null) {
                 // validation error, get form
@@ -169,11 +194,9 @@ public class AppWebController {
 
                 // generate form HTML
                 String formHtml = formService.retrieveFormErrorHtml(startForm, formData);
-                String formJson = formService.generateElementJson(startForm);
 
                 // show form
                 model.addAttribute("form", startForm);
-                model.addAttribute("formJson", formJson);
                 model.addAttribute("formHtml", formHtml);
                 model.addAttribute("stay", formData.getStay());
                 model.addAttribute("errorCount", formData.getFormErrors().size());
@@ -196,7 +219,7 @@ public class AppWebController {
             Collection<WorkflowActivity> activities = result.getActivities();
             if (activities != null && !activities.isEmpty()) {
                 WorkflowActivity nextActivity = activities.iterator().next();
-                String assignmentUrl = "/web/client/app/" + appId + "/" + appDef.getVersion() + "/assignment/" + nextActivity.getId() + "?" + request.getQueryString();
+                String assignmentUrl = "/web/client/app/" + appDef.getId() + "/" + appDef.getVersion() + "/assignment/" + nextActivity.getId() + "?" + request.getQueryString();
                 return "redirect:" + assignmentUrl;
             }
         }
@@ -207,6 +230,8 @@ public class AppWebController {
     @RequestMapping("/client/app/(~:appId)/(~:version)/assignment/(*:activityId)")
     public String clientAssignmentView(HttpServletRequest request, ModelMap model, @RequestParam(required = false) String appId, @RequestParam(required = false) String version, @RequestParam("activityId") String activityId) {
         // check assignment
+        appId = SecurityUtil.validateStringInput(appId);
+        activityId = SecurityUtil.validateStringInput(activityId);
         WorkflowAssignment assignment = workflowManager.getAssignment(activityId);
         if (assignment == null) {
             return "client/app/assignmentUnavailable";
@@ -232,20 +257,18 @@ public class AppWebController {
 
             // get form
             String appVersion = (appDef != null) ? appDef.getVersion().toString() : "";
-            String formUrl = AppUtil.getRequestContextPath() + "/web/client/app/" + appId + "/" + appVersion + "/assignment/" + activityId + "/submit";
-            PackageActivityForm activityForm = appService.viewAssignmentForm(appId, appVersion.toString(), activityId, formData, formUrl);
+            String formUrl = AppUtil.getRequestContextPath() + "/web/client/app/" + appDef.getId() + "/" + appVersion + "/assignment/" + activityId + "/submit";
+            PackageActivityForm activityForm = appService.viewAssignmentForm(appDef.getId(), appVersion.toString(), activityId, formData, formUrl);
             Form form = activityForm.getForm();
 
             // generate form HTML
             String formHtml = formService.retrieveFormHtml(form, formData);
-            String formJson = formService.generateElementJson(form);
 
             model.addAttribute("appDef", appDef);
             model.addAttribute("assignment", assignment);
             model.addAttribute("activityForm", activityForm);
             model.addAttribute("form", form);
             model.addAttribute("formHtml", formHtml);
-            model.addAttribute("formJson", formJson);
         } catch (Exception e) {
             LogUtil.error(AppWebController.class.getName(), e, "");
         }
@@ -262,11 +285,16 @@ public class AppWebController {
         }
 
         // get app
+        SecurityUtil.validateStringInput(appId);
+        SecurityUtil.validateStringInput(activityId);
         AppDefinition appDef = null;
         if (appId != null && !appId.isEmpty()) {
             appDef = appService.getAppDefinition(appId, version);
         } else {
             appDef = appService.getAppDefinitionForWorkflowActivity(activityId);
+        }
+        if (appDef == null) {
+            return "client/app/assignmentUnavailable";
         }
 
         // extract form values from request
@@ -277,8 +305,8 @@ public class AppWebController {
         String processId = assignment.getProcessId();
 
         // load form
-        Long appVersion = (appDef != null) ? appDef.getVersion() : null;
-        String formUrl = AppUtil.getRequestContextPath() + "/web/client/app/" + appId + "/" + appVersion + "/assignment/" + activityId + "/submit";
+        Long appVersion = appDef.getVersion();
+        String formUrl = AppUtil.getRequestContextPath() + "/web/client/app/" + appDef.getId() + "/" + appVersion + "/assignment/" + activityId + "/submit";
         PackageActivityForm activityForm = appService.viewAssignmentForm(appDef, assignment, formData, formUrl);
         Form form = activityForm.getForm();
 
@@ -300,7 +328,7 @@ public class AppWebController {
                 // redirect to next activity if available
                 WorkflowAssignment nextActivity = workflowManager.getAssignmentByProcess(processId);
                 if (nextActivity != null) {
-                    String assignmentUrl = "/web/client/app/" + appId + "/" + appVersion + "/assignment/" + nextActivity.getActivityId();
+                    String assignmentUrl = "/web/client/app/" + appDef.getId() + "/" + appVersion + "/assignment/" + nextActivity.getActivityId();
                     return "redirect:" + assignmentUrl;
                 }
             }
@@ -319,12 +347,10 @@ public class AppWebController {
             html = formService.generateElementErrorHtml(form, formResult);
             errorCount = errors.size();
         }
-        String formJson = formService.generateElementJson(form);
 
         model.addAttribute("assignment", assignment);
         model.addAttribute("form", form);
         model.addAttribute("formHtml", html);
-        model.addAttribute("formJson", formJson);
         model.addAttribute("formResult", formResult);
         model.addAttribute("stay", formResult.getStay());
         model.addAttribute("errorCount", errorCount);
@@ -342,15 +368,64 @@ public class AppWebController {
      * @throws IOException
      */
     @RequestMapping("/client/app/(*:appId)/(~:version)/form/download/(*:formDefId)/(*:primaryKeyValue)/(*:fileName)")
-    public void downloadUploadedFile(HttpServletResponse response, @RequestParam("formDefId") String formDefId, @RequestParam(value = "appId") String appId, @RequestParam(value = "version", required = false) String version, @RequestParam("primaryKeyValue") String primaryKeyValue, @RequestParam("fileName") String fileName, @RequestParam(required = false) String attachment) throws IOException {
-        ServletOutputStream stream = response.getOutputStream();
+    public void downloadUploadedFile(HttpServletRequest request, HttpServletResponse response, @RequestParam("formDefId") String formDefId, @RequestParam(value = "appId") String appId, @RequestParam(value = "version", required = false) String version, @RequestParam("primaryKeyValue") String primaryKeyValue, @RequestParam("fileName") String fileName, @RequestParam(required = false) String attachment) throws IOException {
+        boolean isAuthorize = false;
+        
         Form form = null;
-        AppDefinition appDef = appService.getAppDefinition(appId, version);
-        FormDefinition formDef = formDefinitionDao.loadById(formDefId, appDef);
-        if (formDef != null) {
-            String json = formDef.getJson();
-            form = (Form) formService.createElementFromJson(json);
+        AppDefinition appDef;
+        
+        try {
+            if (appId != null && !appId.isEmpty()
+                    && formDefId != null && !formDefId.isEmpty() 
+                    && primaryKeyValue != null && !primaryKeyValue.isEmpty() 
+                    && fileName != null && !fileName.isEmpty()) {
+                
+                appDef = appService.getAppDefinition(appId, version);
+                FormDefinition formDef = formDefinitionDao.loadById(formDefId, appDef);
+                
+                if (formDef != null) {
+                    String json = formDef.getJson();
+                    form = (Form) formService.createElementFromJson(json);
+
+                    if (form != null && form.getLoadBinder() != null) {
+                        FormData formData = new FormData();
+                        FormRowSet rows = form.getLoadBinder().load(form, primaryKeyValue, formData);
+                        if (rows != null && !rows.isEmpty()) {
+                            FormRow row = rows.get(0);
+                            for (Object fieldId : row.keySet()) {
+                                String compareValue = fileName;
+                                if (compareValue.endsWith(FileManager.THUMBNAIL_EXT)) {
+                                    compareValue = compareValue.replace(FileManager.THUMBNAIL_EXT, "");
+                                }
+                                
+                                String value = row.getProperty(fieldId.toString());
+                                
+                                if (value.equals(compareValue)
+                                        || (value.contains(";") 
+                                            && (value.startsWith(compareValue + ";") 
+                                                || value.contains(";" + compareValue + ";")
+                                                || value.endsWith(";" + compareValue)))) {
+                                    Element field = FormUtil.findElement(fieldId.toString(), form, formData);
+                                    if (field instanceof FileDownloadSecurity) {
+                                        FileDownloadSecurity security = (FileDownloadSecurity) field;
+                                        isAuthorize = security.isDownloadAllowed(request.getParameterMap());
+                                        
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e){}
+        
+        if (!isAuthorize) {
+            response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            return;
         }
+        
+        ServletOutputStream stream = response.getOutputStream();
         String decodedFileName = fileName;
         try {
             decodedFileName = URLDecoder.decode(fileName, "UTF8");
@@ -366,6 +441,11 @@ public class AppWebController {
         byte[] bbuf = new byte[65536];
 
         try {
+            String contentType = request.getSession().getServletContext().getMimeType(decodedFileName);
+            if (contentType != null) {
+                response.setContentType(contentType);
+            }
+            
             // set attachment filename
             if (Boolean.valueOf(attachment).booleanValue()) {
                 String name = URLEncoder.encode(decodedFileName, "UTF8").replaceAll("\\+", "%20");
@@ -382,5 +462,107 @@ public class AppWebController {
             stream.flush();
             stream.close();
         }
+    }
+    
+    /**
+     * Download app resource files.
+     * @param request
+     * @param response
+     * @param appId
+     * @param version
+     * @param fileName
+     * @param attachment
+     * @throws IOException
+     */
+    @RequestMapping("/app/(*:appId)/(~:version)/resources/(*:fileName)")
+    public void downloadAppResource(HttpServletRequest request, HttpServletResponse response, @RequestParam(value = "appId") String appId, @RequestParam(value = "version", required = false) String version, @RequestParam("fileName") String fileName, @RequestParam(required = false) String attachment) throws IOException {
+        boolean isAuthorize = false;
+        
+        fileName = getFilename(fileName, request.getRequestURL().toString());
+        
+        AppDefinition appDef;
+        String decodedFileName = fileName;
+        try {
+            decodedFileName = URLDecoder.decode(fileName, "UTF8");
+        } catch (UnsupportedEncodingException e) {
+            // ignore
+        }
+        
+        try {
+            if (appId != null && !appId.isEmpty()) {
+                if (version == null) {
+                    Long appVersion = appService.getPublishedVersion(appId);
+                    if (appVersion != null) {
+                        version = appVersion.toString();
+                    }
+                }
+                
+                appDef = appService.getAppDefinition(appId, version);
+                version = appDef.getVersion().toString();
+                AppResource appResource = appResourceDao.loadById(decodedFileName, appDef);
+                
+                Map<String, Object> value = PropertyUtil.getPropertiesValueFromJson(appResource.getPermissionProperties());
+                if (value.containsKey("permission") && value.get("permission") instanceof Map && ((Map) value.get("permission")).containsKey("className")) {
+                    Map permission = (Map) value.get("permission");
+                    if (!permission.get("className").toString().isEmpty()) {
+                        Plugin plugin = pluginManager.getPlugin(permission.get("className").toString());
+                        if (plugin != null && plugin instanceof UserviewPermission) {
+                            UserviewPermission up = (UserviewPermission) plugin;
+                            up.setProperties((Map) value.get("properties"));
+                            up.setCurrentUser(workflowUserManager.getCurrentUser());
+                            up.setRequestParameters(request.getParameterMap());
+                            isAuthorize = up.isAuthorize();
+                        }
+                    } else {
+                        isAuthorize = true;
+                    }
+                }
+            }
+        } catch (Exception e){}
+        
+        if (!isAuthorize) {
+            response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            return;
+        }
+        
+        ServletOutputStream stream = response.getOutputStream();
+        File file = AppResourceUtil.getFile(appId, version, decodedFileName);
+        if (file == null || file.isDirectory() || !file.exists()) {
+            response.sendError(HttpServletResponse.SC_NOT_FOUND);
+            return;
+        }
+        DataInputStream in = new DataInputStream(new FileInputStream(file));
+        byte[] bbuf = new byte[65536];
+
+        try {
+            String contentType = request.getSession().getServletContext().getMimeType(decodedFileName);
+            if (contentType != null) {
+                response.setContentType(contentType);
+            }
+            
+            // set attachment filename
+            if (Boolean.valueOf(attachment).booleanValue()) {
+                String name = URLEncoder.encode(decodedFileName, "UTF8").replaceAll("\\+", "%20");
+                response.setHeader("Content-Disposition", "attachment; filename="+name+"; filename*=UTF-8''" + name);
+            }
+
+            // send output
+            int length = 0;
+            while ((in != null) && ((length = in.read(bbuf)) != -1)) {
+                stream.write(bbuf, 0, length);
+            }
+        } finally {
+            in.close();
+            stream.flush();
+            stream.close();
+        }
+    }
+    
+    protected String getFilename(String filename, String url) {
+        if (!url.endsWith(".")) {
+            filename = url.substring(url.indexOf(filename));
+        }
+        
+        return filename;
     }
 }

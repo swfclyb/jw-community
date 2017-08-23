@@ -64,41 +64,64 @@ FormUtil = {
     
     getGridCells : function(cellFieldId){
         var fieldId = cellFieldId.split(".")[0];
+        var cells = null;
         
         var field = FormUtil.getField(fieldId);
-        
-        cellFieldId = cellFieldId.replace(/\./g, '_');
-        var cells = $(field).find("[name=" + cellFieldId + "], [name$=_" + cellFieldId + "]");
-        //filter those in template 
-        cells = $(cells).filter(':parents(.grid-row-template)');
+        var gridDataObject = field.data("gridDataObject");
+        if (gridDataObject !== null && gridDataObject !== undefined) {
+            var cellId = cellFieldId.split(".")[1];
+            
+            //build dummy hidden fields for plugins using this method
+            cells = new Array();
+            for (var i in gridDataObject) {
+                var value = gridDataObject[i][cellId];
+                var temp = $("<input type='hidden'/>").val(value);
+                cells.push(temp);
+            }
+        } else {
+            cellFieldId = cellFieldId.replace(/\./g, '_');
+            cells = $(field).find("[name=" + cellFieldId + "], [name$=_" + cellFieldId + "]");
+            //filter those in template 
+            cells = $(cells).filter(':parents(.grid-row-template)');
+        }
         return cells;
     },
     
     getGridCellValues : function (cellFieldId) {
         var fieldId = cellFieldId.split(".")[0];
+        var values = new Array();
         
         var field = FormUtil.getField(fieldId);
         
-        var values = new Array();
-        field.find("tr.grid-row").each(function() {
-            if ($(this).find("textarea[id$=_jsonrow]").length > 0) {
-                var cellId = cellFieldId.split(".")[1];
-
-                //get json data from hidden textarea
-                var data = $(this).find("textarea[id$=_jsonrow]").val();
-                var dataObj = $.parseJSON(data);
-
-                if (dataObj[cellId] !== undefined) {
-                    values.push(dataObj[cellId]);
-                }
-            } else {
-                var cellId = cellFieldId.replace(/\./g, '_');
-                var cell = $(field).find("[name=" + cellId + "], [name$=_" + cellId + "]");
-                if (cell.length > 1) {
-                    values.push(cell.text());
-                }
+        var gridDataObject = field.data("gridDataObject");
+        if (gridDataObject !== null && gridDataObject !== undefined) {
+            var cellId = cellFieldId.split(".")[1];
+            
+            for (var i in gridDataObject) {
+                var value = gridDataObject[i][cellId];
+                values.push(value);
             }
-        });
+        } else {
+            field.find("tr.grid-row").each(function() {
+                if ($(this).find("textarea[id$=_jsonrow]").length > 0) {
+                    var cellId = cellFieldId.split(".")[1];
+
+                    //get json data from hidden textarea
+                    var data = $(this).find("textarea[id$=_jsonrow]").val();
+                    var dataObj = $.parseJSON(data);
+
+                    if (dataObj[cellId] !== undefined) {
+                        values.push(dataObj[cellId]);
+                    }
+                } else {
+                    var cellId = cellFieldId.replace(/\./g, '_');
+                    var cell = $(field).find("[name=" + cellId + "], [name$=_" + cellId + "]");
+                    if (cell.length > 1) {
+                        values.push(cell.text());
+                    }
+                }
+            });
+        }
         
         return values;
     },
@@ -113,7 +136,7 @@ FormUtil = {
                 if (v['field'] !== "") {
                     values = FormUtil.getValues(v['field']).join(";");
                 }
-                
+            
                 if (values.length === 0 && v['defaultValue'] !== "") {
                     values = v['defaultValue'];
                 }
@@ -127,6 +150,81 @@ FormUtil = {
         }
         
         return queryString;
+    },
+    
+    numberFormat : function (value, options){
+        var numOfDecimal = parseInt(options.numOfDecimal);
+        var decimalSeperator = ".";
+        var regexDecimalSeperator = "\\\.";
+        var thousandSeparator = ",";
+        var regexThousandSeparator = ",";
+        if(options.format.toUpperCase() === "EURO"){
+            decimalSeperator = ",";
+            regexDecimalSeperator = ",";
+            thousandSeparator = ".";
+            regexThousandSeparator = "\\\.";
+        }
+        
+        var number = value.replace(/\s/g, "");
+        number = number.replace(new RegExp(regexThousandSeparator, 'g'), '');
+        number = number.replace(new RegExp(regexDecimalSeperator, 'g'), '.');
+        if(options.prefix !== ""){
+            number = number.replace(options.prefix, "");
+        }
+        if(options.postfix !== ""){
+            number = number.replace(options.postfix, "");
+        }
+                
+        var exponent = "";
+        if (!isFinite(number)) {
+            number = 0;
+        } else {
+            var numberstr = number.toString();
+            var eindex = numberstr.indexOf("e");
+            if (eindex > -1){
+                exponent = numberstr.substring(eindex);
+                number = parseFloat(numberstr.substring(0, eindex));
+            }
+
+            if (numOfDecimal !== null){
+                var temp = Math.pow(10, numOfDecimal);
+                number = Math.round(number * temp) / temp;
+            }
+        }
+        
+        var sign = number < 0 ? "-" : "";
+        
+        var integer = (number > 0 ? Math.floor (number) : Math.abs (Math.ceil (number))).toString ();
+        var fractional = number.toString ().substring (integer.length + sign.length);
+        fractional = numOfDecimal !== null && numOfDecimal > 0 || fractional.length > 1 ? (decimalSeperator + fractional.substring (1)) : "";
+        if(numOfDecimal !== null && numOfDecimal > 0){
+            for (i = fractional.length - 1, z = numOfDecimal; i < z; ++i){
+                fractional += "0";
+            }
+        }
+        
+        if(options.useThousandSeparator.toUpperCase() === "TRUE"){
+            for (i = integer.length - 3; i > 0; i -= 3){
+                integer = integer.substring (0 , i) + thousandSeparator + integer.substring (i);
+            }
+        }
+        
+        var resultString = "";
+        if(sign !== ""){
+            resultString += sign;
+        }
+        if(options.prefix !== ""){
+            resultString += options.prefix + ' ';
+        }
+        resultString += integer + fractional;
+        if(exponent !== ""){
+            resultString += ' ' + exponent;
+        }
+        if(options.postfix !== ""){
+            resultString += ' ' + options.postfix;
+        }
+        
+        return  resultString;
     }
 }
 

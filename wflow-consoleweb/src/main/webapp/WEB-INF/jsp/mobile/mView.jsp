@@ -4,7 +4,7 @@
 <%@page import="org.joget.workflow.util.WorkflowUtil"%>
 <%@page contentType="text/html" pageEncoding="utf-8"%>
 
-<c:set var="mobileViewDisabled" value="${userview.setting.properties.mobileViewDisabled}"/>
+<c:set var="mobileViewDisabled" value="${userview.setting.theme.mobileViewDisabled}"/>
 <c:if test="${mobileViewDisabled}">
     <c:redirect url="/web/userview/${appId}/${userview.properties.id}/${key}"/>
 </c:if>
@@ -151,7 +151,6 @@
             Mobile.contextPath = "${pageContext.request.contextPath}";
             Mobile.updateCache();  
         </script>
-        <script type="text/javascript" src="${pageContext.request.contextPath}/js/json/formUtil.js"></script>
     </head>
     <body class="ui-mobile-viewport">
 
@@ -238,5 +237,6 @@
         <div class="ui-loader" style="top: 332px; "></div>
         <div id="online-status"></div>
         <%= AppUtil.getSystemAlert() %> 
+        <jsp:include page="mFooter.jsp" flush="true" />   
     </body>    
 </html>

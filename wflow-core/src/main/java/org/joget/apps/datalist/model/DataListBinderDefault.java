@@ -1,22 +1,42 @@
 package org.joget.apps.datalist.model;
 
-import edu.emory.mathcs.backport.java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import org.joget.plugin.base.ExtDefaultPlugin;
 
 /**
- * Convenient abstract base class for binders to inherit
+ * A base abstract class to develop a Datalist Binder Plugin
  */
 public abstract class DataListBinderDefault extends ExtDefaultPlugin implements DataListBinder {
 
-    public static String USERVIEW_KEY_SYNTAX = "#userviewKey#";
+    public static final String USERVIEW_KEY_SYNTAX = "#userviewKey#";
+    private DataList datalist;
+
+    public DataList getDatalist() {
+        return datalist;
+    }
+
+    public void setDatalist(DataList datalist) {
+        this.datalist = datalist;
+    }
     
+    /**
+     * To get the actual column name
+     * @param name
+     * @return 
+     */
     @Override
     public String getColumnName(String name) {
         return name;
     }
     
+    /**
+     * Construct filter conditions
+     * 
+     * @param filterQueryObjects
+     * @return 
+     */
     public DataListFilterQueryObject processFilterQueryObjects(DataListFilterQueryObject[] filterQueryObjects) {
         DataListFilterQueryObject obj = new DataListFilterQueryObject();
         String condition = "";

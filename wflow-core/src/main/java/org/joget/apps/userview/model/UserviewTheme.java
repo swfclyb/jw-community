@@ -1,55 +1,76 @@
 package org.joget.apps.userview.model;
 
+/**
+ * A base abstract class to develop a Userview Theme plugin. 
+ * 
+ */
 public abstract class UserviewTheme extends ExtElement {
-    private Userview userview;
+    protected Userview userview;
 
+    /**
+     * Gets userview which using this theme
+     * @return 
+     */
     public Userview getUserview() {
         return userview;
     }
 
+    /**
+     * Sets userview which using this theme
+     * @param userview 
+     */
     public void setUserview(Userview userview) {
         this.userview = userview;
     }
     
     /**
-     * Return css in string
+     * Return css to inject in &lt;head&gt; tag
      * @return
      */
     public abstract String getCss();
 
     /**
-     * Return javascript in string
+     * Return javascript to inject in &lt;head&gt; tag
      * @return
      */
     public abstract String getJavascript();
 
     /**
-     * Return header in string
+     * Return HTML template to replace default header
      * @return
      */
     public abstract String getHeader();
 
     /**
-     * Return footer in string
+     * Return HTML template to replace default footer
      * @return
      */
     public abstract String getFooter();
 
     /**
-     * Return html on page top in string
+     * Return HTML template to inject before the page container
      * @return
      */
     public abstract String getPageTop();
 
     /**
-     * Return html on page bottom in string
+     * Return HTML template to inject after the page container
      * @return
      */
     public abstract String getPageBottom();
 
     /**
-     * Return html on before content in string
+     * Return HTML template to inject before content
      * @return
      */
     public abstract String getBeforeContent();
+    
+    /**
+     * Returns mobile view setting. For responsive themes, this method should return true.
+     * @return true if mobile view is disabled i.e. theme is responsive
+     */
+    public boolean isMobileViewDisabled() {
+        boolean disableMobileView = "true".equalsIgnoreCase(userview.getSetting().getPropertyString("mobileViewDisabled"));
+        return disableMobileView;
+    }
 }

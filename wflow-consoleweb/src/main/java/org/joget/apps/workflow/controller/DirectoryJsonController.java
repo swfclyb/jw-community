@@ -14,6 +14,7 @@ import org.apache.commons.lang.StringEscapeUtils;
 import org.joget.apps.app.service.AppUtil;
 import org.joget.commons.util.LogUtil;
 import org.joget.commons.util.ResourceBundleUtil;
+import org.joget.commons.util.SecurityUtil;
 
 import org.joget.directory.dao.EmploymentDao;
 import org.joget.directory.dao.UserDao;
@@ -31,16 +32,16 @@ import org.joget.directory.model.Organization;
 import org.joget.directory.model.User;
 import org.joget.directory.model.service.ExtDirectoryManager;
 import org.joget.workflow.model.dao.WorkflowHelper;
+import org.joget.workflow.model.service.WorkflowUserManager;
 import org.joget.workflow.util.WorkflowUtil;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.security.Authentication;
-import org.springframework.security.AuthenticationException;
-import org.springframework.security.AuthenticationManager;
-import org.springframework.security.context.HttpSessionContextIntegrationFilter;
-import org.springframework.security.context.SecurityContextHolder;
-import org.springframework.security.providers.UsernamePasswordAuthenticationToken;
-import org.springframework.security.ui.AbstractProcessingFilter;
-import org.springframework.security.ui.savedrequest.SavedRequest;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
+import org.springframework.security.web.savedrequest.SavedRequest;
 
 @Controller
 public class DirectoryJsonController {
@@ -54,6 +55,8 @@ public class DirectoryJsonController {
     UserDao userDao;
     @Autowired
     EmploymentDao employmentDao;
+    @Autowired
+    WorkflowUserManager workflowUserManager;
 
     public EmploymentDao getEmploymentDao() {
         return employmentDao;
@@ -102,7 +105,7 @@ public class DirectoryJsonController {
 
         jsonObject.accumulate("total", getDirectoryManager().getTotalOrganizationsByFilter(name));
         jsonObject.accumulate("start", start);
-        jsonObject.accumulate("sort", sort);
+        jsonObject.accumulate("sort", StringEscapeUtils.escapeJavaScript(sort));
         jsonObject.accumulate("desc", desc);
 
         if (callback != null && callback.trim().length() != 0) {
@@ -139,7 +142,7 @@ public class DirectoryJsonController {
 
         jsonObject.accumulate("total", getDirectoryManager().getTotalDepartmentnsByOrganizationId(name, orgId));
         jsonObject.accumulate("start", start);
-        jsonObject.accumulate("sort", sort);
+        jsonObject.accumulate("sort", StringEscapeUtils.escapeJavaScript(sort));
         jsonObject.accumulate("desc", desc);
 
         if (callback != null && callback.trim().length() != 0) {
@@ -169,7 +172,7 @@ public class DirectoryJsonController {
 
         jsonObject.accumulate("total", getDirectoryManager().getTotalDepartmentsByParentId(name, deptId));
         jsonObject.accumulate("start", start);
-        jsonObject.accumulate("sort", sort);
+        jsonObject.accumulate("sort", StringEscapeUtils.escapeJavaScript(sort));
         jsonObject.accumulate("desc", desc);
 
         if (callback != null && callback.trim().length() != 0) {
@@ -199,7 +202,7 @@ public class DirectoryJsonController {
 
         jsonObject.accumulate("total", getDirectoryManager().getTotalGradesByOrganizationId(name, orgId));
         jsonObject.accumulate("start", start);
-        jsonObject.accumulate("sort", sort);
+        jsonObject.accumulate("sort", StringEscapeUtils.escapeJavaScript(sort));
         jsonObject.accumulate("desc", desc);
 
         if (callback != null && callback.trim().length() != 0) {
@@ -234,7 +237,7 @@ public class DirectoryJsonController {
 
         jsonObject.accumulate("total", getDirectoryManager().getTotalGroupsByOrganizationId(name, orgId));
         jsonObject.accumulate("start", start);
-        jsonObject.accumulate("sort", sort);
+        jsonObject.accumulate("sort", StringEscapeUtils.escapeJavaScript(sort));
         jsonObject.accumulate("desc", desc);
 
         if (callback != null && callback.trim().length() != 0) {
@@ -272,7 +275,7 @@ public class DirectoryJsonController {
 
         jsonObject.accumulate("total", getDirectoryManager().getTotalGroupsByUserId(name, userId, orgId, inGroup));
         jsonObject.accumulate("start", start);
-        jsonObject.accumulate("sort", sort);
+        jsonObject.accumulate("sort", StringEscapeUtils.escapeJavaScript(sort));
         jsonObject.accumulate("desc", desc);
 
         if (callback != null && callback.trim().length() != 0) {
@@ -329,7 +332,7 @@ public class DirectoryJsonController {
 
         jsonObject.accumulate("total", getDirectoryManager().getTotalUsers(name, orgId, deptId, gradeId, groupId, roleId, active));
         jsonObject.accumulate("start", start);
-        jsonObject.accumulate("sort", sort);
+        jsonObject.accumulate("sort", StringEscapeUtils.escapeJavaScript(sort));
         jsonObject.accumulate("desc", desc);
 
         if (callback != null && callback.trim().length() != 0) {
@@ -368,7 +371,7 @@ public class DirectoryJsonController {
 
         jsonObject.accumulate("total", getUserDao().getTotalUsersNotInGroup(name, groupId));
         jsonObject.accumulate("start", start);
-        jsonObject.accumulate("sort", sort);
+        jsonObject.accumulate("sort", StringEscapeUtils.escapeJavaScript(sort));
         jsonObject.accumulate("desc", desc);
 
         if (callback != null && callback.trim().length() != 0) {
@@ -465,7 +468,7 @@ public class DirectoryJsonController {
 
         jsonObject.accumulate("total", getDirectoryManager().getTotalEmployments(name, orgId, deptId, gradeId));
         jsonObject.accumulate("start", start);
-        jsonObject.accumulate("sort", sort);
+        jsonObject.accumulate("sort", StringEscapeUtils.escapeJavaScript(sort));
         jsonObject.accumulate("desc", desc);
 
         if (callback != null && callback.trim().length() != 0) {
@@ -501,7 +504,7 @@ public class DirectoryJsonController {
 
         jsonObject.accumulate("total", employmentDao.getTotalEmploymentsNoHaveOrganization(name));
         jsonObject.accumulate("start", start);
-        jsonObject.accumulate("sort", sort);
+        jsonObject.accumulate("sort", StringEscapeUtils.escapeJavaScript(sort));
         jsonObject.accumulate("desc", desc);
 
         if (callback != null && callback.trim().length() != 0) {
@@ -540,7 +543,7 @@ public class DirectoryJsonController {
 
         jsonObject.accumulate("total", employmentDao.getTotalEmploymentsNotInDepartment(name, orgId, deptId));
         jsonObject.accumulate("start", start);
-        jsonObject.accumulate("sort", sort);
+        jsonObject.accumulate("sort", StringEscapeUtils.escapeJavaScript(sort));
         jsonObject.accumulate("desc", desc);
 
         if (callback != null && callback.trim().length() != 0) {
@@ -579,7 +582,7 @@ public class DirectoryJsonController {
 
         jsonObject.accumulate("total", employmentDao.getTotalEmploymentsNotInGrade(name, orgId, gradeId));
         jsonObject.accumulate("start", start);
-        jsonObject.accumulate("sort", sort);
+        jsonObject.accumulate("sort", StringEscapeUtils.escapeJavaScript(sort));
         jsonObject.accumulate("desc", desc);
 
         if (callback != null && callback.trim().length() != 0) {
@@ -652,32 +655,34 @@ public class DirectoryJsonController {
                 // generate new session to avoid session fixation vulnerability
                 HttpSession session = httpRequest.getSession(false);
                 if (session != null) {
-                    SavedRequest savedRequest = (SavedRequest) session.getAttribute(AbstractProcessingFilter.SPRING_SECURITY_SAVED_REQUEST_KEY);
+                    SavedRequest savedRequest = new HttpSessionRequestCache().getRequest(httpRequest, httpResponse);
                     session.invalidate();
                     session = httpRequest.getSession(true);
                     if (savedRequest != null) {
-                        session.setAttribute(AbstractProcessingFilter.SPRING_SECURITY_SAVED_REQUEST_KEY, savedRequest);
+                        new HttpSessionRequestCache().saveRequest(httpRequest, httpResponse);
                     }
-                    session.setAttribute(HttpSessionContextIntegrationFilter.SPRING_SECURITY_CONTEXT_KEY, SecurityContextHolder.getContext());
                 }
 
                 // add success to audit trail
                 boolean authenticated = result.isAuthenticated();
+                if (authenticated) {
+                    workflowUserManager.clearCurrentThreadUser();
+                }
                 LogUtil.info(getClass().getName(), "Authentication for user " + username + ": " + authenticated);
                 WorkflowHelper workflowHelper = (WorkflowHelper) AppUtil.getApplicationContext().getBean("workflowHelper");
-                workflowHelper.addAuditTrail("DirectoryJsonController", "authenticate", "Authentication for user " + username + ": " + authenticated);                
-
+                workflowHelper.addAuditTrail(this.getClass().getName(), "authenticate", "Authentication for user " + username + ": " + authenticated);  
+                
             } catch (AuthenticationException e) {
                 // add failure to audit trail
                 if (username != null) {
                     LogUtil.info(getClass().getName(), "Authentication for user " + username + ": false");
                     WorkflowHelper workflowHelper = (WorkflowHelper) AppUtil.getApplicationContext().getBean("workflowHelper");
-                    workflowHelper.addAuditTrail("DirectoryJsonController", "authenticate", "Authentication for user " + username + ": false");
+                    workflowHelper.addAuditTrail(this.getClass().getName(), "authenticate", "Authentication for user " + username + ": false");
                 }
             }
         }
         
-        if (WorkflowUtil.isCurrentUserAnonymous()) {
+        if (WorkflowUtil.isCurrentUserAnonymous() && (callback == null || callback.isEmpty())) {
             httpResponse.sendError(HttpServletResponse.SC_UNAUTHORIZED);
             return;
         }
@@ -689,17 +694,11 @@ public class DirectoryJsonController {
         if (isAdmin) {
             jsonObject.accumulate("isAdmin", "true");
         }
+        
+        // csrf token
+        String csrfToken = SecurityUtil.getCsrfTokenName() + "=" + SecurityUtil.getCsrfTokenValue(httpRequest);
+        jsonObject.accumulate("token", csrfToken);
 
-        writeJson(writer, jsonObject, callback);
-    }
-
-    protected static void writeJson(Writer writer, JSONObject jsonObject, String callback) throws IOException, JSONException {
-        if (callback != null && callback.trim().length() > 0) {
-            writer.write(StringEscapeUtils.escapeHtml(callback) + "(");
-        }
-        jsonObject.write(writer);
-        if (callback != null && callback.trim().length() > 0) {
-            writer.write(")");
-        }
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 }

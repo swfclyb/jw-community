@@ -1,5 +1,6 @@
 package org.joget.workflow.model.dao;
 
+import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -7,7 +8,7 @@ import org.joget.workflow.model.WorkflowAssignment;
 import org.joget.workflow.model.WorkflowDeadline;
 
 /**
- * Helper methods required for processing during runtime
+ * Helper methods required by workflow engine for processing during runtime
  * e.g. plugins to execute for a tool, assignees for a participant, processing hash variables, etc.
  */
 public interface WorkflowHelper {
@@ -43,13 +44,25 @@ public interface WorkflowHelper {
     String processHashVariable(String content, WorkflowAssignment wfAssignment, String escapeFormat, Map<String, String> replaceMap);
 
     /**
-     * add an audit trail record
+     * Add an audit trail record and trigger audit trail event
      * @param clazz
      * @param method
      * @param message
      * @return
      */
     void addAuditTrail(String clazz, String method, String message);
+    
+    /**
+     * Add an audit trail record and trigger audit trail event
+     * @param clazz
+     * @param method
+     * @param message
+     * @param paramTypes
+     * @param args
+     * @param returnObject
+     * @return
+     */
+    void addAuditTrail(String clazz, String method, String message, Class[] paramTypes, Object[] args, Object returnObject);
 
     /**
      * Execute Deadline Plugin
@@ -69,4 +82,11 @@ public interface WorkflowHelper {
      * @return
      */
     String getPublishedPackageVersion(String packageId);
+    
+    /**
+     * Get replacement users replaced by an user
+     * @param username
+     * @return
+     */
+    Map<String, Collection<String>> getReplacementUsers(String username);
 }

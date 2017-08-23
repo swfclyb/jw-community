@@ -3,10 +3,11 @@
     properties : [{
         name : 'id',
         label : '@@form.checkbox.id@@',
-        type : 'textfield',
+        type : 'autocomplete',
         required : 'True',
         regex_validation : '^[a-zA-Z0-9_]+$',
-        validation_message : '@@form.checkbox.invalidId@@'
+        validation_message : '@@form.checkbox.invalidId@@',
+        options_callback : 'FormBuilder.getAllFieldOptions'
     },
     {
         name : 'label',
@@ -65,7 +66,8 @@
     {
         name : 'controlField',
         label : '@@form.checkbox.controlField@@',
-        type : 'textfield'
+        type : 'selectbox',
+        options_callback : 'FormBuilder.getFieldOptions'
     },
     {
         label : '@@form.checkbox.ui@@',
@@ -98,6 +100,7 @@
     {
         name : 'workflowVariable',
         label : '@@form.checkbox.workflowVariable@@',
-        type : 'textfield'
+        type : 'autocomplete',
+        options_ajax : '[CONTEXT_PATH]/web/json/console/app[APP_PATH]/workflowVariable/options'
     }]
 }]

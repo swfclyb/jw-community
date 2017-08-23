@@ -45,14 +45,21 @@ import freemarker.template.TemplateModel;
 import freemarker.template.TemplateModelException;
 import java.io.StringWriter;
 import java.io.Writer;
+import java.util.Collections;
+import java.util.Comparator;
 import javax.servlet.http.HttpServletRequest;
 import org.apache.commons.lang.StringEscapeUtils;
 import org.joget.commons.util.ResourceBundleUtil;
 import org.joget.commons.util.StringUtil;
+import org.springframework.util.ClassUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.servlet.LocaleResolver;
 
+/**
+ * Service methods used to manage plugins
+ * 
+ */
 public class PluginManager implements ApplicationContextAware {
 
     private Felix felix = null;
@@ -61,13 +68,24 @@ public class PluginManager implements ApplicationContextAware {
     private Map<Class, Map<String, Plugin>> pluginCache = new HashMap<Class, Map<String, Plugin>>();
     private Set<String> blackList;
     private Set<String> scanPackageList;
+    private Map<String, Class> osgiPluginClassCache = new HashMap<String, Class>();
+    private List<String> noOsgiPluginClassCache = new ArrayList<String>();
+    private Map<String, Template> templateCache = new HashMap<String, Template>();
+    private List<String> noResourceBundleCache = new ArrayList<String>();
+    private Map<String, ResourceBundle> resourceBundleCache = new HashMap<String, ResourceBundle>();
     
     public final static String ESCAPE_JAVASCRIPT = "javascript";
     
+    /**
+     * Used by system to initialize Plugin manager
+     */
     public PluginManager() {
         init();
     }
 
+    /**
+     * Used by system to initialize Plugin manager
+     */
     public PluginManager(String baseDirectory) {
         if (baseDirectory != null) {
             this.baseDirectory = baseDirectory;
@@ -75,18 +93,33 @@ public class PluginManager implements ApplicationContextAware {
         init();
     }
 
+    /**
+     * Used by system to retrieves a list of black list plugin classname 
+     */
     public Set<String> getBlackList() {
         return blackList;
     }
 
+    /**
+     * Used by system to sets a list of black list plugin classname 
+     * @param blackList 
+     */
     public void setBlackList(Set<String> blackList) {
         this.blackList = blackList;
     }
 
+    /**
+     * Used by system to retrieves a list of custom scanning packages
+     * @return 
+     */
     public Set<String> getScanPackageList() {
         return scanPackageList;
     }
 
+    /**
+     * Used by system to sets a list of custom scanning packages
+     * @param blackList 
+     */
     public void setScanPackageList(Set<String> scanPackageList) {
         this.scanPackageList = scanPackageList;
     }
@@ -113,17 +146,26 @@ public class PluginManager implements ApplicationContextAware {
      */
     protected void init() {
         Properties config = new Properties();
+        InputStream in = null;
         try {
-            config.load(getClass().getClassLoader().getResourceAsStream("config.properties"));
+            in = getClass().getClassLoader().getResourceAsStream("config.properties");
+            config.load(in);
         } catch (IOException ex) {
             LogUtil.error(PluginManager.class.getName(), ex, "");
+        } finally {
+            try {
+                if (in != null) {
+                    in.close();
+                }
+            } catch(IOException e) {                
+            }
         }
 
         // workaround for log4j classloading issues
         System.setProperty("log4j.ignoreTCL", "true");
         
         // Create a case-insensitive configuration property map.
-        Map configMap = new StringMap(false);
+        Map configMap = new StringMap();
         configMap.putAll(config);
         // Configure the Felix instance to be embedded.
 
@@ -227,12 +269,21 @@ public class PluginManager implements ApplicationContextAware {
                 newBundle.update();
             }
             // clear cache
-            pluginCache.clear();
+            clearCache();
             return newBundle;
         } catch (Exception be) {
             LogUtil.error(PluginManager.class.getName(), be, "Failed bundle installation from " + location + ": " + be.toString());
             return null;
         }
+    }
+    
+    protected void clearCache() {
+        pluginCache.clear();
+        osgiPluginClassCache.clear();
+        noOsgiPluginClassCache.clear();
+        templateCache.clear();
+        resourceBundleCache.clear();
+        noResourceBundleCache.clear();
     }
 
     protected boolean startBundle(Bundle bundle) {
@@ -279,7 +330,6 @@ public class PluginManager implements ApplicationContextAware {
 
     /**
      * Returns a list of plugins from the OSGI container only.
-     * Plugins from the OSGI container will take priority if there are conflicting classes.
      * @param clazz Optional filter for type of plugins to return, null will return all.
      * @return
      */
@@ -306,7 +356,7 @@ public class PluginManager implements ApplicationContextAware {
     public Map<String, Plugin> loadPluginMap(Class clazz) {
         Map<String, Plugin> pluginMap = new HashMap<String, Plugin>();
         for (Plugin plugin : list(clazz)) {
-            pluginMap.put(plugin.getClass().getName(), plugin);
+            pluginMap.put(ClassUtils.getUserClass(plugin).getName(), plugin);
         }
         return pluginMap;
     }
@@ -331,7 +381,14 @@ public class PluginManager implements ApplicationContextAware {
                 components.addAll(provider.findCandidateComponents(scanPackage));
             }
         }
-        for (BeanDefinition component : components) {
+        // sort plugins
+        List<BeanDefinition> componentList = new ArrayList(components);
+        Collections.sort(componentList, new Comparator() {
+            public int compare(Object o1, Object o2) {
+                return ((BeanDefinition)o1).getBeanClassName().compareTo(((BeanDefinition)o2).getBeanClassName());
+            }
+        });
+        for (BeanDefinition component : componentList) {
             String beanClassName = component.getBeanClassName();
             if (blackList == null || !blackList.contains(beanClassName)) {
                 try {
@@ -339,7 +396,9 @@ public class PluginManager implements ApplicationContextAware {
                     Plugin plugin = beanClass.newInstance();
                     pluginMap.put(plugin.getName(), plugin);
                 } catch (Exception ex) {
-                    LogUtil.warn(PluginManager.class.getName(), " Error loading plugin class  " + beanClassName);
+                    if (!beanClassName.startsWith("org.joget")) {
+                        LogUtil.warn(PluginManager.class.getName(), " Error loading plugin class  " + beanClassName);
+                    }
                 }
             }
         }
@@ -347,8 +406,8 @@ public class PluginManager implements ApplicationContextAware {
         // find OSGI plugins
         Collection<Plugin> pluginList = loadOsgiPlugins();
         for (Plugin plugin : pluginList) {
-            if (clazz == null || clazz.isAssignableFrom(plugin.getClass())) {
-                if (blackList == null || !blackList.contains(plugin.getClass().getName())) {
+            if (clazz == null || clazz.isAssignableFrom(ClassUtils.getUserClass(plugin))) {
+                if (blackList == null || !blackList.contains(ClassUtils.getUserClass(plugin).getName())) {
                     pluginMap.put(plugin.getName(), plugin);
                 }
             }
@@ -412,6 +471,13 @@ public class PluginManager implements ApplicationContextAware {
         try {
             // check filename
             if (filename == null || filename.trim().length() == 0) {
+                try {
+                    if (in != null) {
+                        in.close();
+                    }
+                } catch (IOException ex) {
+                    LogUtil.error(PluginManager.class.getName(), ex, "");
+                }
                 throw new PluginException("Invalid plugin name");
             }
             if (!filename.endsWith(".jar")) {
@@ -450,9 +516,9 @@ public class PluginManager implements ApplicationContextAware {
 
             // validate jar file
             boolean isValid = false;
+            JarFile jarFile = null;
             try {
-                JarFile jarFile = new JarFile(outputFile);
-                jarFile.close();
+                jarFile = new JarFile(outputFile);
                 isValid = true;
             } catch (IOException ex) {
                 //delete invalid file
@@ -467,6 +533,10 @@ public class PluginManager implements ApplicationContextAware {
             } catch (Exception ex) {
                 LogUtil.error(PluginManager.class.getName(), ex, "");
                 throw new PluginException("Invalid jar file");
+            } finally {
+                if (jarFile != null) {
+                    jarFile.close();
+                }
             }
 
             // install
@@ -485,14 +555,14 @@ public class PluginManager implements ApplicationContextAware {
     }
 
     /**
-     * Uninstall/remove all plugin, without deleting the plugin file
+     * Uninstall/remove all plugin, option to deleting the plugin file
      * @param name
      * @return
      */
     public void uninstallAll(boolean deleteFiles) {
         Collection<Plugin> pluginList = this.list();
         for (Plugin plugin : pluginList) {
-            uninstall(plugin.getClass().getName(), deleteFiles);
+            uninstall(ClassUtils.getUserClass(plugin).getName(), deleteFiles);
         }
     }
 
@@ -506,7 +576,7 @@ public class PluginManager implements ApplicationContextAware {
     }
 
     /**
-     * Uninstall/remove a plugin
+     * Uninstall/remove a plugin, option to deleting the plugin file
      * @param name
      * @return
      */
@@ -530,7 +600,7 @@ public class PluginManager implements ApplicationContextAware {
                 result = true;
 
                 // clear cache
-                pluginCache.clear();
+                clearCache();
             } catch (Exception ex) {
                 LogUtil.error(PluginManager.class.getName(), ex, "");
             }
@@ -567,25 +637,36 @@ public class PluginManager implements ApplicationContextAware {
      */
     protected Plugin loadOsgiPlugin(String name) {
         Plugin plugin = null;
-        try {
-            BundleContext context = felix.getBundleContext();
+        if (!noOsgiPluginClassCache.contains(name)) {
+            try {
+                Class clazz = osgiPluginClassCache.get(name);
+                if (clazz == null) {
+                    BundleContext context = felix.getBundleContext();
 
-            ServiceReference sr = context.getServiceReference(name);
-            if (sr != null) {
-                Class clazz = sr.getBundle().loadClass(name);
-                Object obj = clazz.newInstance();
-                boolean isPlugin = obj instanceof Plugin;
-                LogUtil.debug(PluginManager.class.getName(), " plugin obj " + obj + " class: " + obj.getClass().getName() + " " + isPlugin);
-                LogUtil.debug(PluginManager.class.getName(), " plugin classloader: " + obj.getClass().getClassLoader());
-                LogUtil.debug(PluginManager.class.getName(), " current classloader: " + Plugin.class.getClassLoader());
-                if (isPlugin) {
-                    plugin = (Plugin) obj;
+                    ServiceReference sr = context.getServiceReference(name);
+                    if (sr != null) {
+                        clazz = sr.getBundle().loadClass(name);
+                        osgiPluginClassCache.put(name, clazz);
+                        context.ungetService(sr);
+                    }
                 }
-                context.ungetService(sr);
+
+                if (clazz != null) {
+                    Object obj = clazz.newInstance();
+                    boolean isPlugin = obj instanceof Plugin;
+                    LogUtil.debug(PluginManager.class.getName(), " plugin obj " + obj + " class: " + obj.getClass().getName() + " " + isPlugin);
+                    LogUtil.debug(PluginManager.class.getName(), " plugin classloader: " + obj.getClass().getClassLoader());
+                    LogUtil.debug(PluginManager.class.getName(), " current classloader: " + Plugin.class.getClassLoader());
+                    if (isPlugin) {
+                        plugin = (Plugin) obj;
+                    }
+                } else {
+                    noOsgiPluginClassCache.add(name);
+                }
+            } catch (Exception ex) {
+                LogUtil.error(PluginManager.class.getName(), ex, "");
+                throw new PluginException("Plugin " + name + " could not be retrieved", ex);
             }
-        } catch (Exception ex) {
-            LogUtil.error(PluginManager.class.getName(), ex, "");
-            throw new PluginException("Plugin " + name + " could not be retrieved", ex);
         }
         return plugin;
     }
@@ -662,6 +743,10 @@ public class PluginManager implements ApplicationContextAware {
                         stream.flush();
                         stream.close();
                     }
+                } catch (Exception e) {
+                    LogUtil.error(PluginManager.class.getName(), e, "Error closing IO");
+                }
+                try {
                     if (input != null) {
                         input.close();
                     }
@@ -706,28 +791,58 @@ public class PluginManager implements ApplicationContextAware {
      * @return null if the resource bundle is not found or in the case of an exception
      */
     public ResourceBundle getPluginMessageBundle(String pluginName, String translationPath) {
-        ResourceBundle bundle = null;
+        String cacheKey = pluginName + "_" + translationPath;
+        if (!noResourceBundleCache.contains(cacheKey)) {
+            ResourceBundle bundle = resourceBundleCache.get(cacheKey);
+            if (bundle == null) {
+                // get plugin
+                Plugin plugin = getPlugin(pluginName);
+                if (plugin != null) {
 
-        // get plugin
-        Plugin plugin = getPlugin(pluginName);
-        if (plugin != null) {
-            
-            LocaleResolver localeResolver = (LocaleResolver) getBean("localeResolver");  
-            Locale locale = localeResolver.resolveLocale(getHttpServletRequest());
+                    LocaleResolver localeResolver = (LocaleResolver) getBean("localeResolver");
+                    Locale locale = localeResolver.resolveLocale(getHttpServletRequest());
 
-            try {
-                bundle = ResourceBundle.getBundle(translationPath, locale, plugin.getClass().getClassLoader());
-            } catch (Exception e) {
-                LogUtil.debug(PluginManager.class.getName(), translationPath + " translation file not found");
+                    try {
+                        bundle = ResourceBundle.getBundle(translationPath, locale, plugin.getClass().getClassLoader());
+                        if (bundle != null) {
+                            resourceBundleCache.put(cacheKey, bundle);
+                        } else {
+                            noResourceBundleCache.add(cacheKey);
+                        }
+                    } catch (Exception e) {
+                        LogUtil.debug(PluginManager.class.getName(), translationPath + " translation file not found");
+                        noResourceBundleCache.add(cacheKey);
+                    }
+                } else {
+                    noResourceBundleCache.add(cacheKey);
+                }
             }
+            return bundle;
         }
-        return bundle;
+        return null;
     }
     
+    /**
+     * Method used to parse the message key to message in a content based on plugin
+     * message bundle
+     * @param content
+     * @param pluginName
+     * @param translationPath
+     * @return 
+     */
     public String processPluginTranslation(String content, String pluginName, String translationPath) {
         return processPluginTranslation(content, pluginName, translationPath, null);
     }
 
+    /**
+     * Method used to parse the message key to message in a content based on plugin
+     * message bundle. Option to escape javascript in the message 
+     * @param content
+     * @param pluginName
+     * @param translationPath
+     * @param escapeType
+     * @return 
+     */
     public String processPluginTranslation(String content, String pluginName, String translationPath, String escapeType) {
         if (!(content != null && content.indexOf("@@") >= 0)) {
             return content;
@@ -770,59 +885,96 @@ public class PluginManager implements ApplicationContextAware {
         return content;
     }
 
+    /**
+     * Method used to get message from plugin message bundle
+     * @param key
+     * @param pluginName
+     * @param translationPath
+     * @return 
+     */
     public String getMessage(String key, String pluginName, String translationPath) {
         return processPluginTranslation("@@" + key + "@@", pluginName, translationPath);
     }
 
+    /**
+     * Method used to gets freemarker template from plugin jar
+     * @param data
+     * @param pluginName
+     * @param templatePath
+     * @param translationPath
+     * @return 
+     */
     public String getPluginFreeMarkerTemplate(Map data, final String pluginName, final String templatePath, String translationPath) {
+        // add request into data model
+        if (!data.containsKey("request")) {
+            try {
+                HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
+                if (request != null) {
+                    data.put("request", request);
+                } else {
+                    Map<String, String> r = new HashMap<String, String>();
+                    r.put("contextPath", "/jw");
+                    data.put("request", r);
+                }
+            } catch (NoClassDefFoundError e) {
+                // ignore if servlet request is not available
+            }
+        }
+        
         String result = "";
         try {
-            // init configuration
-            Configuration configuration = new Configuration();
+            String cacheKey = pluginName + "_" + templatePath;
+            Template temp = templateCache.get(cacheKey);
+            if (temp == null) {
 
-            configuration.setObjectWrapper(new DefaultObjectWrapper() {
-                // override object wrapper for Maps to support list-ordered maps
+                // init configuration
+                Configuration configuration = new Configuration();
 
-                @Override
-                public TemplateModel wrap(Object obj) throws TemplateModelException {
-                    if (obj instanceof Map) {
-                        return new ListOrderedHash((Map) obj, this);
-                    } else {
-                        return super.wrap(obj);
+                configuration.setObjectWrapper(new DefaultObjectWrapper() {
+                    // override object wrapper for Maps to support list-ordered maps
+
+                    @Override
+                    public TemplateModel wrap(Object obj) throws TemplateModelException {
+                        if (obj instanceof Map) {
+                            return new ListOrderedHash((Map) obj, this);
+                        } else {
+                            return super.wrap(obj);
+                        }
                     }
-                }
-            });
+                });
 
-            // set template loader
-            configuration.setTemplateLoader(new URLTemplateLoader() {
+                // set template loader
+                configuration.setTemplateLoader(new URLTemplateLoader() {
 
-                @Override
-                protected URL getURL(String string) {
-                    URL url = getPluginResourceURL(pluginName, templatePath);
-                    return url;
-                }
+                    @Override
+                    protected URL getURL(String string) {
+                        URL url = getPluginResourceURL(pluginName, templatePath);
+                        return url;
+                    }
 
-                @Override
-                public long getLastModified(Object templateSource) {
-                    return 0;
-                }
-                
-            });
+                    @Override
+                    public long getLastModified(Object templateSource) {
+                        return 0;
+                    }
 
-            // Get or create a template
-            Template temp = configuration.getTemplate(templatePath);
+                });
+
+                // Get or create a template
+                temp = configuration.getTemplate(templatePath);
+                templateCache.put(cacheKey, temp);
+            }
 
             // Merge data-model with template
             Writer out = new StringWriter();
             temp.process(data, out);
             out.flush();
             result = out.toString();
-            
+
             result = processPluginTranslation(result, pluginName, translationPath);
 
         } catch (Exception ex) {
             LogUtil.error(PluginManager.class.getName(), ex, "");
-            result = ex.toString();
+            result = ResourceBundleUtil.getMessage("general.error.error500");
         }
         return result;
     }
@@ -873,7 +1025,7 @@ public class PluginManager implements ApplicationContextAware {
     }
 
     /**
-     * Stop the plugin manager
+     * Method used by Felix Framework to Stop the plugin manager
      */
     public synchronized void shutdown() {
         if (felix != null) {
@@ -887,11 +1039,24 @@ public class PluginManager implements ApplicationContextAware {
         }
     }
 
+    /**
+     * Method used by Felix Framework to shutdown the plugin manager
+     */
     @Override
-    public void finalize() {
+    protected void finalize() throws Throwable {
         shutdown();
+        super.finalize();
     }
 
+    /**
+     * Method used to test a plugin
+     * 
+     * @param name
+     * @param location
+     * @param properties
+     * @param override
+     * @return 
+     */
     public Object testPlugin(String name, String location, Map properties, boolean override) {
         LogUtil.info(PluginManager.class.getName(), "====testPlugin====");
         // check for existing plugin
@@ -937,6 +1102,10 @@ public class PluginManager implements ApplicationContextAware {
         return result;
     }
 
+    /**
+     * Methods used by Felix Framework
+     * @param args 
+     */
     public static void main(String[] args) {
 //        String pluginDirectory = "target/wflow-bundles";
         PluginManager pm = new PluginManager();
@@ -993,6 +1162,10 @@ public class PluginManager implements ApplicationContextAware {
         }
     }
     
+    /**
+     * Gets the current Http Request
+     * @return 
+     */
     public HttpServletRequest getHttpServletRequest() {
         try {
             HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
@@ -1006,6 +1179,11 @@ public class PluginManager implements ApplicationContextAware {
         }
     }
 
+    /**
+     * Gets a class bean from ApplicationContext
+     * @param beanName
+     * @return 
+     */
     public Object getBean(String beanName) {
         Object bean = null;
         if (applicationContext != null) {
@@ -1014,6 +1192,11 @@ public class PluginManager implements ApplicationContextAware {
         return bean;
     }
 
+    /**
+     * Method used for system to set ApplicationContext
+     * @param context
+     * @throws BeansException 
+     */
     public void setApplicationContext(ApplicationContext appContext) throws BeansException {
         this.applicationContext = appContext;
         refresh();

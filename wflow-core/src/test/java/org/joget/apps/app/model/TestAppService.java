@@ -33,7 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 import static org.junit.Assert.*;
 
 @RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(locations = {"classpath:testAppsApplicationContext.xml", "classpath:appsApplicationContext.xml"})
+@ContextConfiguration(locations = {"classpath:testAppsApplicationContext.xml"})
 public class TestAppService {
 
     protected final String TEST_APP_ID = "workflow_patterns";
@@ -317,9 +317,6 @@ public class TestAppService {
             assertTrue(formResult.getFormErrors().isEmpty());
 
         } finally {
-            // delete form data
-            formDataDao.delete(TEST_FORM_ID, TEST_FORM_ID, new String[]{processId});
-
             // existing delete package
             deleteXpdlPackage(TEST_APP_ID);
 

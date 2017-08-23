@@ -9,8 +9,9 @@
                 </label>
             </#if>
         <#else>
-            <label>
+            <label tabindex="0" >
                 <input grouping="${option.grouping!?html}" <#if element.properties.readonly! != 'true'>id="${elementParamName!}"</#if> name="${elementParamName!}" type="radio" value="${option.value!?html}" <#if error??>class="form-error-cell"</#if> <#if element.properties.readonly! == 'true'> disabled</#if> <#if value?? && value == option.value!>checked</#if> />
+                <i></i>    
                 ${option.label!?html}
             </label>
         </#if>
@@ -20,7 +21,6 @@
     <div style="clear:both;"></div>
 
     <#if (element.properties.controlField?? && element.properties.controlField! != "" && !(element.properties.readonly! == 'true' && element.properties.readonlyLabel! == 'true')) >
-        <script type="text/javascript" src="${request.contextPath}/plugin/org.joget.apps.form.lib.SelectBox/js/jquery.dynamicoptions.js"></script>
         <script type="text/javascript">
             $(document).ready(function(){
                 $("#${elementParamName!}${element.properties.elementUniqueKey!}").dynamicOptions({

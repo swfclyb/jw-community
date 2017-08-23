@@ -10,39 +10,46 @@ import java.util.Collection;
 import java.util.List;
 import javax.servlet.http.HttpServletRequest;
 import org.springframework.context.ApplicationContext;
-import org.springframework.security.GrantedAuthority;
-import org.springframework.security.GrantedAuthorityImpl;
-import org.springframework.security.concurrent.SessionIdentifierAware;
-import org.springframework.security.userdetails.UserDetails;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 
-public class WorkflowUserDetails implements UserDetails, SessionIdentifierAware {
+public class WorkflowUserDetails implements UserDetails {
 
     private User user;
+    private Collection<GrantedAuthority> authorities = null;
 
     public WorkflowUserDetails(User user) {
         super();
         this.user = user;
     }
 
-    public GrantedAuthority[] getAuthorities() {
-        try {
-            ApplicationContext appContext = WorkflowUtil.getApplicationContext();
-            DirectoryManager directoryManager = (DirectoryManager) appContext.getBean("directoryManager");
-            Collection<Role> roles = directoryManager.getUserRoles(user.getUsername());
-            List<GrantedAuthority> gaList = new ArrayList<GrantedAuthority>();
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        if (authorities == null) {
+            try {
+                ApplicationContext appContext = WorkflowUtil.getApplicationContext();
+                DirectoryManager directoryManager = (DirectoryManager) appContext.getBean("directoryManager");
+                Collection<Role> roles = directoryManager.getUserRoles(user.getUsername());
+                List<GrantedAuthority> gaList = new ArrayList<GrantedAuthority>();
 
-            if (roles != null && !roles.isEmpty()) {
-                for (Role role : roles) {
-                    GrantedAuthorityImpl ga = new GrantedAuthorityImpl(role.getId());
-                    gaList.add(ga);
+                if (roles != null && !roles.isEmpty()) {
+                    for (Role role : roles) {
+                        GrantedAuthority ga = new SimpleGrantedAuthority(role.getId());
+                        gaList.add(ga);
+                    }
                 }
-            }
 
-            return gaList.toArray(new GrantedAuthority[gaList.size()]);
-        } catch (Exception ex) {
-            LogUtil.error(getClass().getName(), ex, "");
-            return new GrantedAuthority[]{};
+                authorities = gaList;
+            } catch (Exception ex) {
+                LogUtil.error(getClass().getName(), ex, "");
+                authorities = new ArrayList<GrantedAuthority>();
+            }
         }
+        return authorities;
+    }
+    
+    public User getUser() {
+        return user;
     }
 
     public String getPassword() {

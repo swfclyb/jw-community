@@ -3,7 +3,7 @@
 
 <div id="nav">
     <div id="nav-title">
-
+        <p><i class="icon-dashboard"></i> <fmt:message key='console.header.menu.label.monitor'/></p>
     </div>
     <div id="nav-body">
         <ul id="nav-list">
@@ -22,14 +22,16 @@
     </div>
     <div id="main-body">
         <dl>
+            <dt><fmt:message key="adminBar.label.app"/></dt>
+            <dd><a target="_blank" href="${pageContext.request.contextPath}/web/console/app/<c:out value="${appDef.appId}"/>/<c:out value="${appDef.version}"/>/forms"><c:out value="${appDef.name}"/> v<c:out value="${appDef.version}"/></a></dd>
+            <dt><fmt:message key="console.app.process.common.label.name"/></dt>
+            <dd><a target="_blank" href="${pageContext.request.contextPath}/web/console/app/<c:out value="${wfProcess.packageId}"/>/<c:out value="${appDef.version}"/>/processes/<c:out value="${wfProcess.idWithoutVersion}"/>"><c:out value="${wfProcess.name}"/></a>&nbsp;</dd>
             <dt><fmt:message key="console.app.process.common.label.id"/></dt>
             <dd><c:out value="${wfProcess.instanceId}"/>&nbsp;</dd>
             <dt><fmt:message key="console.app.process.common.label.definitionId"/></dt>
             <dd><c:out value="${wfProcess.id}"/>&nbsp;</dd>
             <dt><fmt:message key="console.app.process.common.label.version"/></dt>
             <dd><c:out value="${wfProcess.version}"/>&nbsp;</dd>
-            <dt><fmt:message key="console.app.process.common.label.name"/></dt>
-            <dd><a target="_blank" href="${pageContext.request.contextPath}/web/console/app/${wfProcess.packageId}/${appDef.version}/processes/${wfProcess.idWithoutVersion}"><c:out value="${wfProcess.name}"/></a>&nbsp;</dd>
             <dt><fmt:message key="console.app.process.common.label.state"/></dt>
             <dd><c:out value="${wfProcess.state}"/>&nbsp;</dd>
             <dt><fmt:message key="console.app.process.common.label.serviceLevelMonitor"/></dt>
@@ -37,15 +39,15 @@
             <dt><fmt:message key="console.app.process.common.label.requester"/></dt>
             <dd><c:out value="${wfProcess.requesterId}"/>&nbsp;</dd>
             <dt><fmt:message key="console.app.process.common.label.startedTime"/></dt>
-            <dd><c:out value="${trackWflowProcess.startedTime}"/>&nbsp;</dd>
+            <dd><ui:dateToString date="${trackWflowProcess.startedTime}"/>&nbsp;</dd>
             <dt><fmt:message key="console.app.process.common.label.limit"/></dt>
             <dd><c:out value="${trackWflowProcess.limit}"/>&nbsp;</dd>
             <dt><fmt:message key="console.app.process.common.label.dueDate"/></dt>
-            <dd><c:out value="${trackWflowProcess.due}"/>&nbsp;</dd>
+            <dd><ui:dateToString date="${trackWflowProcess.due}"/>&nbsp;</dd>
             <dt><fmt:message key="console.app.process.common.label.delay"/></dt>
             <dd><c:out value="${trackWflowProcess.delay}"/>&nbsp;</dd>
             <dt><fmt:message key="console.app.process.common.label.finishTime"/></dt>
-            <dd><c:out value="${trackWflowProcess.finishTime}"/>&nbsp;</dd>
+            <dd><ui:dateToString date="${trackWflowProcess.finishTime}"/>&nbsp;</dd>
             <dt><fmt:message key="console.app.process.common.label.timeConsumingFromDateStarted"/></dt>
             <dd><c:out value="${trackWflowProcess.timeConsumingFromDateStarted}"/>&nbsp;</dd>
         </dl>
@@ -56,7 +58,7 @@
                        var="JsonDataTable"
                        divToUpdate="activityList"
                        jsonData="data"
-                       rowsPerPage="10"
+                       rowsPerPage="15"
                        width="100%"
                        sort="dateCreated"
                        desc="true"
@@ -90,7 +92,7 @@
     }
 
     function viewGraph(){
-        var url = '${pageContext.request.contextPath}/web/console/monitor/process/viewGraph/${wfProcess.instanceId}';
+        var url = '${pageContext.request.contextPath}/web/console/monitor/process/graph/${wfProcess.instanceId}';
         window.open(url);
     }
     

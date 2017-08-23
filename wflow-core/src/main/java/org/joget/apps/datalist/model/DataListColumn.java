@@ -2,11 +2,39 @@ package org.joget.apps.datalist.model;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Contains meta data regarding a data list column
  */
 public class DataListColumn {
+    private Map<String, Object> properties;
+    
+    public Map<String, Object> getProperties() {
+        return properties;
+    }
+
+    public void setProperties(Map<String, Object> properties) {
+        this.properties = properties;
+    }
+    
+    public Object getProperty(String property) {
+        Object value = (properties != null) ? properties.get(property) : null;
+        return value;
+    }
+    
+    public String getPropertyString(String property) {
+        String value = (properties != null && properties.get(property) != null) ? (String) properties.get(property) : "";
+        return value;
+    }
+    
+    public void setProperty(String property, Object value) {
+        if (properties == null) {
+            properties = new HashMap<String, Object>();
+        }
+        properties.put(property, value);
+    }
 
     public DataListColumn() {
     }
@@ -32,6 +60,25 @@ public class DataListColumn {
      * Flag to indicate if column is hidden
      */
     private boolean hidden;
+    /**
+     * Column Width
+     */
+    private String width;
+    /**
+     * Column Style
+     */
+    private String style;
+    
+    /**
+     * Column alignment
+     */
+    private String alignment;
+    
+    /**
+     * Column header alignment
+     */
+    private String headerAlignment;
+    
     /**
      * Optional action for this column
      */
@@ -95,6 +142,54 @@ public class DataListColumn {
 
     public void setHidden(boolean hidden) {
         this.hidden = hidden;
+    }
+
+    public String getWidth() {
+        return width;
+    }
+
+    public void setWidth(String width) {
+        this.width = width;
+    }
+    
+    public String getAlignment() {
+        if (alignment == null) {
+            alignment = "";
+        }
+        return alignment;
+    }
+
+    public void setAlignment(String alignment) {
+        this.alignment = alignment;
+    }
+    
+    public String getHeaderAlignment() {
+        if (headerAlignment == null) {
+            headerAlignment = "";
+        }
+        return headerAlignment;
+    }
+
+    public void setHeaderAlignment(String headerAlignment) {
+        this.headerAlignment = headerAlignment;
+    }
+
+    public String getStyle() {
+        if (style == null) {
+            style = "";
+        }
+        if (getWidth() != null && !getWidth().isEmpty()) {
+            if (!style.isEmpty() && !style.endsWith(";")) {
+                style += ";";
+            }
+            style += "width:"+ getWidth() + ";";
+            width = null;
+        }
+        return style;
+    }
+
+    public void setStyle(String style) {
+        this.style = style;
     }
     
     public DataListAction getAction() {

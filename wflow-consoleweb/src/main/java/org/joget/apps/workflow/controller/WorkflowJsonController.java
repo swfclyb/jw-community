@@ -1,10 +1,12 @@
 package org.joget.apps.workflow.controller;
 
+import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
 import org.joget.commons.util.DynamicDataSourceManager;
 import org.joget.commons.util.LogUtil;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.Writer;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -26,14 +28,20 @@ import org.joget.directory.model.service.DirectoryManager;
 import java.util.Enumeration;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import org.apache.commons.lang.StringEscapeUtils;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpHead;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.client.LaxRedirectStrategy;
 import org.joget.apps.app.model.AppDefinition;
 import org.joget.apps.app.model.UserviewDefinition;
 import org.joget.apps.app.service.AppService;
 import org.joget.apps.app.service.AppUtil;
+import org.joget.commons.util.StringUtil;
 import org.joget.commons.util.TimeZoneUtil;
 import org.joget.workflow.model.WorkflowPackage;
-import org.joget.directory.model.User;
 import org.joget.report.model.ReportRow;
 import org.joget.report.service.ReportManager;
 import org.joget.workflow.model.WorkflowProcessResult;
@@ -43,6 +51,9 @@ import org.joget.workflow.util.WorkflowUtil;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.ui.ModelMap;
 
 @Controller
@@ -72,7 +83,7 @@ public class WorkflowJsonController {
             jsonObject.accumulate("data", data);
         }
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping("/json/workflow/process/list")
@@ -104,7 +115,7 @@ public class WorkflowJsonController {
         jsonObject.accumulate("sort", sort);
         jsonObject.accumulate("desc", desc);
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping("/json/workflow/process/list/package")
@@ -150,7 +161,7 @@ public class WorkflowJsonController {
             jsonObject.accumulate("data", data);
         }
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
 
     }
 
@@ -162,7 +173,7 @@ public class WorkflowJsonController {
         jsonObject.accumulate("id", id);
         jsonObject.accumulate("encodedId", id.replaceAll("#", ":"));
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping("/json/monitoring/running/process/list")
@@ -185,9 +196,9 @@ public class WorkflowJsonController {
             data.put("name", workflowProcess.getName());
             data.put("state", workflowProcess.getState());
             data.put("version", workflowProcess.getVersion());
-            data.put("startedTime", workflowProcess.getStartedTime());
+            data.put("startedTime", TimeZoneUtil.convertToTimeZone(workflowProcess.getStartedTime(), null, AppUtil.getAppDateFormat()));
             data.put("requesterId", workflowProcess.getRequesterId());
-            data.put("due", workflowProcess.getDue() != null ? workflowProcess.getDue() : "-");
+            data.put("due", workflowProcess.getDue() != null ? TimeZoneUtil.convertToTimeZone(workflowProcess.getDue(), null, AppUtil.getAppDateFormat()) : "-");
 
             data.put("serviceLevelMonitor", WorkflowUtil.getServiceLevelIndicator(serviceLevelMonitor));
 
@@ -220,9 +231,9 @@ public class WorkflowJsonController {
             data.put("name", workflowProcess.getName());
             data.put("version", workflowProcess.getVersion());
             data.put("state", workflowProcess.getState());
-            data.put("startedTime", workflowProcess.getStartedTime());
+            data.put("startedTime", TimeZoneUtil.convertToTimeZone(workflowProcess.getStartedTime(), null, AppUtil.getAppDateFormat()));
             data.put("requesterId", workflowProcess.getRequesterId());
-            data.put("due", workflowProcess.getDue() != null ? workflowProcess.getDue() : "-");
+            data.put("due", workflowProcess.getDue() != null ? TimeZoneUtil.convertToTimeZone(workflowProcess.getDue(), null, AppUtil.getAppDateFormat()) : "-");
 
             data.put("serviceLevelMonitor", WorkflowUtil.getServiceLevelIndicator(serviceLevelMonitor));
 
@@ -249,7 +260,7 @@ public class WorkflowJsonController {
             data.put("id", workflowActivity.getId());
             data.put("name", workflowActivity.getName());
             data.put("state", workflowActivity.getState());
-            data.put("dateCreated", workflowActivity.getCreatedTime());
+            data.put("dateCreated", TimeZoneUtil.convertToTimeZone(workflowActivity.getCreatedTime(), null, AppUtil.getAppDateFormat()));
 
             data.put("serviceLevelMonitor", WorkflowUtil.getServiceLevelIndicator(serviceLevelMonitor));
 
@@ -278,7 +289,7 @@ public class WorkflowJsonController {
         jsonObject.accumulate("activityDefId", activityDefId);
         jsonObject.accumulate("status", "aborted");
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping(value = "/json/monitoring/activity/start/(*:processId)/(*:activityDefId)", method = RequestMethod.POST)
@@ -291,7 +302,7 @@ public class WorkflowJsonController {
         jsonObject.accumulate("activityDefId", activityDefId);
         jsonObject.accumulate("result", result);
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping(value = "/json/monitoring/process/copy/(*:processId)/(*:processDefId)", method = RequestMethod.POST)
@@ -317,7 +328,7 @@ public class WorkflowJsonController {
         jsonObject.accumulate("processId", newProcessId);
         jsonObject.accumulate("activities", startedActivities);
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping(value = "/json/monitoring/user/reevaluate", method = RequestMethod.POST)
@@ -334,7 +345,7 @@ public class WorkflowJsonController {
         JSONObject jsonObject = new JSONObject();
         jsonObject.accumulate("status", "variableSet");
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping(value = "/json/monitoring/process/variable/(*:processId)/(*:variable)", method = RequestMethod.POST)
@@ -345,16 +356,52 @@ public class WorkflowJsonController {
         JSONObject jsonObject = new JSONObject();
         jsonObject.accumulate("status", "variableSet");
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
+    
+    @RequestMapping("/json/monitoring/process/view/(*:processId)")
+    public void processMonitorView(Writer writer, @RequestParam(value = "callback", required = false) String callback, @RequestParam("processId") String processId) throws JSONException, IOException {
+        WorkflowProcess process = workflowManager.getRunningProcessById(processId);
+        if (process == null || process.getId() == null) {
+            return;
+        }
+        
+        double serviceLevelMonitor = workflowManager.getServiceLevelMonitorForRunningProcess(processId);
+        WorkflowProcess trackWflowProcess = workflowManager.getRunningProcessInfo(processId);
+        
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.accumulate("processDefId", process.getId());
+        jsonObject.accumulate("processId", process.getInstanceId());
+        jsonObject.accumulate("packageId", process.getPackageId());
+        jsonObject.accumulate("packageName", process.getPackageName());
+        jsonObject.accumulate("name", process.getName());
+        jsonObject.accumulate("version", process.getVersion());
+        jsonObject.accumulate("states", process.getState());
+        jsonObject.accumulate("serviceLevelMonitor", WorkflowUtil.getServiceLevelIndicator(serviceLevelMonitor));
+        
+        jsonObject.accumulate("requester", process.getRequesterId());
+        jsonObject.accumulate("states", process.getState());
+        jsonObject.accumulate("startedTime", TimeZoneUtil.convertToTimeZone(trackWflowProcess.getCreatedTime(), null, AppUtil.getAppDateFormat()));
+        jsonObject.accumulate("limit", trackWflowProcess.getLimit());
+        jsonObject.accumulate("dueDate", TimeZoneUtil.convertToTimeZone(trackWflowProcess.getDue(), null, AppUtil.getAppDateFormat()));
+        jsonObject.accumulate("delay", trackWflowProcess.getDelay());
+        jsonObject.accumulate("finishTime", TimeZoneUtil.convertToTimeZone(trackWflowProcess.getFinishTime(), null, AppUtil.getAppDateFormat()));
+        jsonObject.accumulate("timeConsumingFromDateStarted", trackWflowProcess.getTimeConsumingFromDateCreated());
+        
+        AppUtil.writeJson(writer, jsonObject, callback);
+    }
+    
     @RequestMapping("/json/monitoring/activity/view/(*:activityId)")
     public void activityView(Writer writer, @RequestParam(value = "callback", required = false) String callback, @RequestParam("activityId") String activityId) throws JSONException, IOException {
         WorkflowActivity activity = workflowManager.getActivityById(activityId);
-        if (activity == null) {
+        if (activity == null || activity.getId() == null) {
             return;
         }
         WorkflowActivity activityInfo = workflowManager.getRunningActivityInfo(activityId);
+        double serviceLevelMonitor = workflowManager.getServiceLevelMonitorForRunningActivity(activityId);
+        WorkflowActivity trackWflowActivity = workflowManager.getRunningActivityInfo(activityId);
+        
         JSONObject jsonObject = new JSONObject();
         jsonObject.accumulate("activityId", activity.getId());
         jsonObject.accumulate("activityDefId", activity.getActivityDefId());
@@ -366,6 +413,17 @@ public class WorkflowJsonController {
         jsonObject.accumulate("description", activity.getDescription());
         jsonObject.accumulate("participant", activityInfo.getPerformer());
         jsonObject.accumulate("acceptedUser", activityInfo.getNameOfAcceptedUser());
+        
+        //new added attribute
+        jsonObject.accumulate("serviceLevelMonitor", WorkflowUtil.getServiceLevelIndicator(serviceLevelMonitor));
+        jsonObject.accumulate("state", activityInfo.getState());
+        jsonObject.accumulate("createdTime", trackWflowActivity.getCreatedTime());
+        jsonObject.accumulate("dateLimit", trackWflowActivity.getLimit());
+        jsonObject.accumulate("dueDate", TimeZoneUtil.convertToTimeZone(trackWflowActivity.getDue(), null, AppUtil.getAppDateFormat()));
+        jsonObject.accumulate("delay", trackWflowActivity.getDelay());
+        jsonObject.accumulate("finishTime", TimeZoneUtil.convertToTimeZone(trackWflowActivity.getFinishTime(), null, AppUtil.getAppDateFormat()));
+        jsonObject.accumulate("timeConsumingFromDateCreated", trackWflowActivity.getTimeConsumingFromDateCreated());
+        
         String[] assignmentUsers = activityInfo.getAssignmentUsers();
         for (String user : assignmentUsers) {
             jsonObject.accumulate("assignee", user);
@@ -373,20 +431,20 @@ public class WorkflowJsonController {
         Collection<WorkflowVariable> variableList = workflowManager.getActivityVariableList(activityId);
         for (WorkflowVariable variable : variableList) {
             JSONObject variableObj = new JSONObject();
-            variableObj.accumulate(variable.getId(), variable.getVal());
+            variableObj.accumulate(variable.getId(), (variable.getVal()!=null)?variable.getVal():"");
             jsonObject.accumulate("variable", variableObj);
         }
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping(value = "/json/workflow/process/variable/(*:processId)/(*:variable)")
     public void getProcessVariable(Writer writer, @RequestParam(value = "callback", required = false) String callback, @RequestParam("processId") String processId, @RequestParam("variable") String variable) throws JSONException, IOException {
         String variableValue = workflowManager.getProcessVariable(processId, variable);
         JSONObject jsonObject = new JSONObject();
-        jsonObject.accumulate("variableValue", variableValue);
+        jsonObject.accumulate("variableValue", (variableValue!=null)?variableValue:"");
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping(value = "/json/workflow/process/sla/list")
@@ -448,11 +506,11 @@ public class WorkflowJsonController {
             jsonObject.accumulate("name", process.getName());
             jsonObject.accumulate("version", process.getVersion());
         }
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping(value = "/json/workflow/process/start/(*:processDefId)", method = RequestMethod.POST)
-    public void processStart(Writer writer, ModelMap map, HttpServletRequest request, @RequestParam(value = "callback", required = false) String callback, @RequestParam("processDefId") String processDefId, @RequestParam(value = "processInstanceId", required = false) String processInstanceId) throws JSONException, IOException {
+    public void processStart(Writer writer, ModelMap map, HttpServletRequest request, @RequestParam(value = "callback", required = false) String callback, @RequestParam("processDefId") String processDefId, @RequestParam(value = "processInstanceId", required = false) String processInstanceId, @RequestParam(value = "recordId", required = false) String recordId) throws JSONException, IOException {
         JSONObject jsonObject = new JSONObject();
         String processId = "";
         String activityId = "";
@@ -476,11 +534,7 @@ public class WorkflowJsonController {
         if (workflowManager.isUserInWhiteList(processDefId)) {
             WorkflowProcessResult result;
             appService.getAppDefinitionWithProcessDefId(processDefId);
-            if (processInstanceId != null && processInstanceId.trim().length() > 0) {
-                result = workflowManager.processStartWithInstanceId(processDefId, processInstanceId, variables);
-            } else {
-                result = workflowManager.processStart(processDefId, variables);
-            }
+            result = workflowManager.processStart(processDefId, processInstanceId, variables, null, recordId, false);
 
             if (result != null) {
                 WorkflowProcess processStarted = result.getProcess();
@@ -502,7 +556,7 @@ public class WorkflowJsonController {
         jsonObject.accumulate("processId", processId);
         jsonObject.accumulate("activityId", activityId);
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping(value = "/json/workflow/process/abort/(*:processId)", method = RequestMethod.POST)
@@ -514,7 +568,7 @@ public class WorkflowJsonController {
         jsonObject.accumulate("processId", processId);
         jsonObject.accumulate("status", "aborted");
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping("/json/workflow/assignment/list/count")
@@ -523,7 +577,7 @@ public class WorkflowJsonController {
 
         JSONObject jsonObject = new JSONObject();
         jsonObject.accumulate("total", total);
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping("/json/workflow/assignment/list/pending/count")
@@ -532,7 +586,7 @@ public class WorkflowJsonController {
 
         JSONObject jsonObject = new JSONObject();
         jsonObject.accumulate("total", total);
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping("/json/workflow/assignment/list/accepted/count")
@@ -541,7 +595,7 @@ public class WorkflowJsonController {
 
         JSONObject jsonObject = new JSONObject();
         jsonObject.accumulate("total", total);
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping("/json/workflow/assignment/list")
@@ -550,11 +604,6 @@ public class WorkflowJsonController {
         Integer total = assignmentList.getTotal();
         JSONObject jsonObject = new JSONObject();
 
-        User user = directoryManager.getUserByUsername(workflowUserManager.getCurrentUsername());
-        String gmt = "";
-        if (user != null) {
-            gmt = user.getTimeZone();
-        }
         String format = AppUtil.getAppDateFormat();
         for (WorkflowAssignment assignment : assignmentList) {
             Map data = new HashMap();
@@ -563,9 +612,9 @@ public class WorkflowJsonController {
             data.put("processName", assignment.getProcessName());
             data.put("activityName", assignment.getActivityName());
             data.put("processVersion", assignment.getProcessVersion());
-            data.put("dateCreated", TimeZoneUtil.convertToTimeZone(assignment.getDateCreated(), gmt, format));
+            data.put("dateCreated", TimeZoneUtil.convertToTimeZone(assignment.getDateCreated(), null, format));
             data.put("acceptedStatus", assignment.isAccepted());
-            data.put("due", assignment.getDueDate() != null ? TimeZoneUtil.convertToTimeZone(assignment.getDueDate(), gmt, format) : "-");
+            data.put("due", assignment.getDueDate() != null ? TimeZoneUtil.convertToTimeZone(assignment.getDueDate(), null, format) : "-");
 
             double serviceLevelMonitor = workflowManager.getServiceLevelMonitorForRunningActivity(assignment.getActivityId());
 
@@ -583,7 +632,7 @@ public class WorkflowJsonController {
         jsonObject.accumulate("sort", sort);
         jsonObject.accumulate("desc", desc);
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping("/json/workflow/assignment/list/pending")
@@ -591,7 +640,6 @@ public class WorkflowJsonController {
         PagedList<WorkflowAssignment> assignmentList = workflowManager.getAssignmentPendingList(processId, sort, desc, start, rows);
         Integer total = assignmentList.getTotal();
         JSONObject jsonObject = new JSONObject();
-        SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy hh:mm");
 
         for (WorkflowAssignment assignment : assignmentList) {
             Map data = new HashMap();
@@ -600,8 +648,8 @@ public class WorkflowJsonController {
             data.put("processName", assignment.getProcessName());
             data.put("activityName", assignment.getActivityName());
             data.put("processVersion", assignment.getProcessVersion());
-            data.put("dateCreated", dateFormat.format(assignment.getDateCreated()));
-            data.put("due", assignment.getDueDate() != null ? assignment.getDueDate() : "-");
+            data.put("dateCreated", TimeZoneUtil.convertToTimeZone(assignment.getDateCreated(), null, AppUtil.getAppDateFormat()));
+            data.put("due", assignment.getDueDate() != null ? TimeZoneUtil.convertToTimeZone(assignment.getDueDate(), null, AppUtil.getAppDateFormat()) : "-");
 
             double serviceLevelMonitor = workflowManager.getServiceLevelMonitorForRunningActivity(assignment.getActivityId());
 
@@ -619,7 +667,7 @@ public class WorkflowJsonController {
         jsonObject.accumulate("sort", sort);
         jsonObject.accumulate("desc", desc);
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping("/json/workflow/assignment/list/accepted")
@@ -634,8 +682,8 @@ public class WorkflowJsonController {
             data.put("processName", assignment.getProcessName());
             data.put("activityName", assignment.getActivityName());
             data.put("processVersion", assignment.getProcessVersion());
-            data.put("dateCreated", assignment.getDateCreated());
-            data.put("due", assignment.getDueDate() != null ? assignment.getDueDate() : "-");
+            data.put("dateCreated", TimeZoneUtil.convertToTimeZone(assignment.getDateCreated(), null, AppUtil.getAppDateFormat()));
+            data.put("due", assignment.getDueDate() != null ? TimeZoneUtil.convertToTimeZone(assignment.getDueDate(), null, AppUtil.getAppDateFormat()) : "-");
 
 
             double serviceLevelMonitor = workflowManager.getServiceLevelMonitorForRunningActivity(assignment.getActivityId());
@@ -654,7 +702,7 @@ public class WorkflowJsonController {
         jsonObject.accumulate("sort", sort);
         jsonObject.accumulate("desc", desc);
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping("/json/workflow/assignment/list/pending/process")
@@ -691,7 +739,7 @@ public class WorkflowJsonController {
             jsonObject.accumulate("data", data);
         }
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping("/json/workflow/assignment/list/accepted/process")
@@ -727,14 +775,14 @@ public class WorkflowJsonController {
             jsonObject.accumulate("data", data);
         }
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping("/json/workflow/assignment/view/(*:activityId)")
-    public void assignmentView(Writer writer, @RequestParam(value = "callback", required = false) String callback, @RequestParam("activityId") String activityId) throws JSONException, IOException {
+    public void assignmentView(Writer writer, HttpServletResponse response, @RequestParam(value = "callback", required = false) String callback, @RequestParam("activityId") String activityId) throws JSONException, IOException {
         WorkflowAssignment assignment = workflowManager.getAssignment(activityId);
         if (assignment == null) {
-            return;
+            response.sendError(HttpServletResponse.SC_NOT_FOUND, "Assignment does not exist.");
         }
         JSONObject jsonObject = new JSONObject();
         jsonObject.accumulate("activityId", assignment.getActivityId());
@@ -749,31 +797,26 @@ public class WorkflowJsonController {
         jsonObject.accumulate("assigneeId", assignment.getAssigneeId());
         jsonObject.accumulate("assigneeName", assignment.getAssigneeName());
 
-        User user = directoryManager.getUserByUsername(workflowUserManager.getCurrentUsername());
-        String gmt = "";
-        if (user != null) {
-            gmt = user.getTimeZone();
-        }
         String format = AppUtil.getAppDateFormat();
-        jsonObject.accumulate("dateCreated", TimeZoneUtil.convertToTimeZone(assignment.getDateCreated(), gmt, format));
+        jsonObject.accumulate("dateCreated", TimeZoneUtil.convertToTimeZone(assignment.getDateCreated(), null, format));
         if (assignment.getDueDate() != null) {
-            jsonObject.accumulate("dueDate", TimeZoneUtil.convertToTimeZone(assignment.getDueDate(), gmt, format));
+            jsonObject.accumulate("dueDate", TimeZoneUtil.convertToTimeZone(assignment.getDueDate(), null, format));
         }
         Collection<WorkflowVariable> variableList = workflowManager.getActivityVariableList(activityId);
         for (WorkflowVariable variable : variableList) {
             JSONObject variableObj = new JSONObject();
-            variableObj.accumulate(variable.getId(), variable.getVal());
+            variableObj.accumulate(variable.getId(), (variable.getVal()!=null)?variable.getVal():"");
             jsonObject.accumulate("variable", variableObj);
         }
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping("/json/workflow/assignment/process/view/(*:processId)")
-    public void assignmentViewByProcess(Writer writer, @RequestParam(value = "callback", required = false) String callback, @RequestParam("processId") String processId) throws JSONException, IOException {
+    public void assignmentViewByProcess(Writer writer, HttpServletResponse response, @RequestParam(value = "callback", required = false) String callback, @RequestParam("processId") String processId) throws JSONException, IOException {
         WorkflowAssignment assignment = workflowManager.getAssignmentByProcess(processId);
         if (assignment == null) {
-            return;
+            response.sendError(HttpServletResponse.SC_NOT_FOUND, "Assignment does not exist.");
         }
         JSONObject jsonObject = new JSONObject();
         jsonObject.accumulate("activityId", assignment.getActivityId());
@@ -788,24 +831,19 @@ public class WorkflowJsonController {
         jsonObject.accumulate("assigneeId", assignment.getAssigneeId());
         jsonObject.accumulate("assigneeName", assignment.getAssigneeName());
 
-        User user = directoryManager.getUserByUsername(workflowUserManager.getCurrentUsername());
-        String gmt = "";
-        if (user != null) {
-            gmt = user.getTimeZone();
-        }
         String format = AppUtil.getAppDateFormat();
-        jsonObject.accumulate("dateCreated", TimeZoneUtil.convertToTimeZone(assignment.getDateCreated(), gmt, format));
+        jsonObject.accumulate("dateCreated", TimeZoneUtil.convertToTimeZone(assignment.getDateCreated(), null, format));
         if (assignment.getDueDate() != null) {
-            jsonObject.accumulate("dueDate", TimeZoneUtil.convertToTimeZone(assignment.getDueDate(), gmt, format));
+            jsonObject.accumulate("dueDate", TimeZoneUtil.convertToTimeZone(assignment.getDueDate(), null, format));
         }
         Collection<WorkflowVariable> variableList = workflowManager.getActivityVariableList(assignment.getActivityId());
         for (WorkflowVariable variable : variableList) {
             JSONObject variableObj = new JSONObject();
-            variableObj.accumulate(variable.getId(), variable.getVal());
+            variableObj.accumulate(variable.getId(), (variable.getVal()!=null)?variable.getVal():"");
             jsonObject.accumulate("variable", variableObj);
         }
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping("/json/workflow/variable/list/(*:processId)")
@@ -818,54 +856,71 @@ public class WorkflowJsonController {
 
         for (WorkflowVariable variable : variableList) {
             JSONObject variableObj = new JSONObject();
-            variableObj.accumulate(variable.getId(), variable.getVal());
+            variableObj.accumulate(variable.getId(), (variable.getVal()!=null)?variable.getVal():"");
             jsonObject.accumulate("variable", variableObj);
         }
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping(value = "/json/workflow/assignment/accept/(*:activityId)", method = RequestMethod.POST)
-    public void assignmentAccept(Writer writer, @RequestParam(value = "callback", required = false) String callback, @RequestParam("activityId") String activityId) throws JSONException, IOException {
+    public void assignmentAccept(Writer writer, HttpServletResponse response, @RequestParam(value = "callback", required = false) String callback, @RequestParam("activityId") String activityId) throws JSONException, IOException {
+        WorkflowAssignment assignment = workflowManager.getAssignment(activityId);
+        if (assignment == null) {
+            response.sendError(HttpServletResponse.SC_NOT_FOUND, "Assignment does not exist.");
+        }
+        
         appService.getAppDefinitionForWorkflowActivity(activityId);
         workflowManager.assignmentAccept(activityId);
-        WorkflowAssignment assignment = workflowManager.getAssignment(activityId);
         LogUtil.info(getClass().getName(), "Assignment " + activityId + " accepted");
         JSONObject jsonObject = new JSONObject();
         jsonObject.accumulate("assignment", assignment.getActivityId());
         jsonObject.accumulate("status", "accepted");
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping(value = "/json/workflow/assignment/withdraw/(*:activityId)", method = RequestMethod.POST)
-    public void assignmentWithdraw(Writer writer, @RequestParam(value = "callback", required = false) String callback, @RequestParam("activityId") String activityId) throws JSONException, IOException {
+    public void assignmentWithdraw(Writer writer, HttpServletResponse response, @RequestParam(value = "callback", required = false) String callback, @RequestParam("activityId") String activityId) throws JSONException, IOException {
+        WorkflowAssignment assignment = workflowManager.getAssignment(activityId);
+        if (assignment == null) {
+            response.sendError(HttpServletResponse.SC_NOT_FOUND, "Assignment does not exist.");
+        }
+        
         appService.getAppDefinitionForWorkflowActivity(activityId);
         workflowManager.assignmentWithdraw(activityId);
-        WorkflowAssignment assignment = workflowManager.getAssignment(activityId);
         LogUtil.info(getClass().getName(), "Assignment " + activityId + " withdrawn");
         JSONObject jsonObject = new JSONObject();
         jsonObject.accumulate("assignment", assignment.getActivityId());
         jsonObject.accumulate("status", "withdrawn");
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping(value = "/json/workflow/assignment/variable/(*:activityId)/(*:variable)", method = RequestMethod.POST)
-    public void assignmentVariable(Writer writer, @RequestParam(value = "callback", required = false) String callback, @RequestParam("activityId") String activityId, @RequestParam("variable") String variable, @RequestParam("value") String value) throws JSONException, IOException {
+    public void assignmentVariable(Writer writer, HttpServletResponse response, @RequestParam(value = "callback", required = false) String callback, @RequestParam("activityId") String activityId, @RequestParam("variable") String variable, @RequestParam("value") String value) throws JSONException, IOException {
+        WorkflowAssignment assignment = workflowManager.getAssignment(activityId);
+        if (assignment == null) {
+            response.sendError(HttpServletResponse.SC_NOT_FOUND, "Assignment does not exist.");
+        }
+        
         appService.getAppDefinitionForWorkflowActivity(activityId);
         workflowManager.assignmentVariable(activityId, variable, value);
         LogUtil.info(getClass().getName(), "Assignment variable " + variable + " set to " + value);
         JSONObject jsonObject = new JSONObject();
         jsonObject.accumulate("status", "variableSet");
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping(value = "/json/workflow/assignment/completeWithVariable/(*:activityId)", method = RequestMethod.POST)
-    public void assignmentCompleteWithVariable(HttpServletRequest request, Writer writer, @RequestParam(value = "callback", required = false) String callback, @RequestParam("activityId") String activityId) throws JSONException, IOException {
-        appService.getAppDefinitionForWorkflowActivity(activityId);
+    public void assignmentCompleteWithVariable(HttpServletRequest request, HttpServletResponse response, Writer writer, @RequestParam(value = "callback", required = false) String callback, @RequestParam("activityId") String activityId) throws JSONException, IOException {
         WorkflowAssignment assignment = workflowManager.getAssignment(activityId);
+        if (assignment == null) {
+            response.sendError(HttpServletResponse.SC_NOT_FOUND, "Assignment does not exist.");
+        }
+        
+        appService.getAppDefinitionForWorkflowActivity(activityId);
         String processId = (assignment != null) ? assignment.getProcessId() : "";
         
         if (assignment != null && !assignment.isAccepted()) {
@@ -894,13 +949,17 @@ public class WorkflowJsonController {
             }
         }
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping(value = "/json/workflow/assignment/complete/(*:activityId)", method = RequestMethod.POST)
-    public void assignmentComplete(Writer writer, @RequestParam(value = "callback", required = false) String callback, @RequestParam("activityId") String activityId) throws JSONException, IOException {
-        appService.getAppDefinitionForWorkflowActivity(activityId);
+    public void assignmentComplete(Writer writer, HttpServletResponse response, @RequestParam(value = "callback", required = false) String callback, @RequestParam("activityId") String activityId) throws JSONException, IOException {
         WorkflowAssignment assignment = workflowManager.getAssignment(activityId);
+        if (assignment == null) {
+            response.sendError(HttpServletResponse.SC_NOT_FOUND, "Assignment does not exist.");
+        }
+        
+        appService.getAppDefinitionForWorkflowActivity(activityId);
 
         String processId = (assignment != null) ? assignment.getProcessId() : "";
 
@@ -928,14 +987,14 @@ public class WorkflowJsonController {
             }
         }
 
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping("/json/workflow/currentUsername")
     public void getCurrentUsername(Writer writer, @RequestParam(value = "callback", required = false) String callback) throws IOException, JSONException {
         JSONObject jsonObject = new JSONObject();
         jsonObject.accumulate("username", workflowManager.getWorkflowUserManager().getCurrentUsername());
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping("/json/workflow/testConnection")
@@ -949,69 +1008,89 @@ public class WorkflowJsonController {
         JSONObject jsonObject = new JSONObject();
         jsonObject.accumulate("datasource", datasource);
         jsonObject.accumulate("success", success);
-        writeJson(writer, jsonObject, callback);
-    }
-
-    protected static void writeJson(Writer writer, JSONObject jsonObject, String callback) throws IOException, JSONException {
-        if (callback != null && callback.trim().length() > 0) {
-            writer.write(StringEscapeUtils.escapeHtml(callback) + "(");
-        }
-        jsonObject.write(writer);
-        if (callback != null && callback.trim().length() > 0) {
-            writer.write(")");
-        }
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
     
     @RequestMapping(value = "/json/monitoring/activity/reassign", method = RequestMethod.POST)
-    public void activityReassign(Writer writer, @RequestParam(value = "callback", required = false) String callback, @RequestParam("username") String username, @RequestParam("replaceUser") String replaceUser, @RequestParam("activityId") String activityId) throws IOException, JSONException {
+    public void activityReassign(Writer writer, HttpServletResponse response, @RequestParam(value = "callback", required = false) String callback, @RequestParam("username") String username, @RequestParam("replaceUser") String replaceUser, @RequestParam("activityId") String activityId) throws IOException, JSONException {
+        WorkflowActivity assignment = workflowManager.getActivityById(activityId);
+        if (assignment == null) {
+            response.sendError(HttpServletResponse.SC_NOT_FOUND, "Assignment does not exist.");
+            return;
+        }
+        
         workflowManager.assignmentReassign(null, null, activityId, username, replaceUser);
         JSONObject jsonObject = new JSONObject();
         jsonObject.accumulate("activityId", activityId);
         jsonObject.accumulate("username", username);
         jsonObject.accumulate("replaceUser", replaceUser);
-        writeJson(writer, jsonObject, callback);
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 
     @RequestMapping(value = "/json/monitoring/running/activity/reassign", method = RequestMethod.POST)
-    public void assignmentReassign(Writer writer, HttpServletResponse response, @RequestParam("state") String state, @RequestParam("processDefId") String processDefId, @RequestParam("username") String username, @RequestParam("replaceUser") String replaceUser, @RequestParam("activityId") String activityId, @RequestParam("processId") String processId) {
+    public void assignmentReassign(Writer writer, HttpServletResponse response, @RequestParam("processDefId") String processDefId, @RequestParam("username") String username, @RequestParam("replaceUser") String replaceUser, @RequestParam("activityId") String activityId, @RequestParam("processId") String processId) throws IOException {
+        WorkflowActivity assignment = workflowManager.getActivityById(activityId);
+        if (assignment == null) {
+            response.sendError(HttpServletResponse.SC_NOT_FOUND, "Assignment does not exist.");
+            return;
+        }
+        
         appService.getAppDefinitionForWorkflowActivity(activityId);
         workflowManager.assignmentReassign(processDefId, processId, activityId, username, replaceUser);
         response.setStatus(HttpServletResponse.SC_NO_CONTENT);
     }
 
     @RequestMapping(value = "/json/monitoring/running/activity/complete", method = RequestMethod.POST)
-    public void completeProcess(Writer writer, HttpServletResponse response, @RequestParam("state") String state, @RequestParam("processDefId") String processDefId, @RequestParam("activityId") String activityId, @RequestParam("processId") String processId) {
-        String username = workflowUserManager.getCurrentUsername();
-        appService.getAppDefinitionForWorkflowActivity(activityId);
-        workflowManager.assignmentForceComplete(processDefId, processId, activityId, username);
+    public void completeProcess(Writer writer, HttpServletResponse response, @RequestParam("processDefId") String processDefId, @RequestParam("activityId") String activityId, @RequestParam("processId") String processId) throws IOException {
+        WorkflowActivity assignment = workflowManager.getActivityById(activityId);
+        if (assignment == null) {
+            response.sendError(HttpServletResponse.SC_NOT_FOUND, "Assignment does not exist.");
+            return;
+        }
+        
+        if (WorkflowActivity.TYPE_TOOL.equals(assignment.getType())) {
+            workflowManager.activityForceComplete(processDefId, processId, activityId);
+        } else {
+            String username = workflowUserManager.getCurrentUsername();
+            appService.getAppDefinitionForWorkflowActivity(activityId);
+            workflowManager.assignmentForceComplete(processDefId, processId, activityId, username);
+        }
         response.setStatus(HttpServletResponse.SC_NO_CONTENT);
     }
     
     @RequestMapping("/json/apps/published/userviews")
-    public void publishedApps(Writer writer, @RequestParam(value = "callback", required = false) String callback, @RequestParam(value = "appId", required = false) String appId) throws JSONException, IOException {
+    public void publishedApps(Writer writer, @RequestParam(value = "callback", required = false) String callback, @RequestParam(value = "appId", required = false) String appId, @RequestParam(value = "appCenter", required = false) Boolean isAppCenter) throws JSONException, IOException {
         Collection<AppDefinition> appDefinitionList = appService.getPublishedApps(appId);
         JSONObject root = new JSONObject();
         JSONArray apps = new JSONArray();
         for (AppDefinition appDef: appDefinitionList) {
             JSONObject app = new JSONObject();
             app.accumulate("id", appDef.getAppId());
-            app.accumulate("name", appDef.getName());
+            app.accumulate("name", StringUtil.stripAllHtmlTag(appDef.getName()));
             app.accumulate("version", appDef.getVersion());
             JSONArray userviews = new JSONArray();
             for (UserviewDefinition userviewDef: appDef.getUserviewDefinitionList()) {
+                if (isAppCenter != null && isAppCenter && userviewDef.getJson().contains("\"hideThisUserviewInAppCenter\":\"true\"")) {
+                    continue;
+                }
+                
                 JSONObject userview = new JSONObject();
                 userview.accumulate("id", userviewDef.getId());
-                userview.accumulate("name", AppUtil.processHashVariable(userviewDef.getName(), null, null, null));
+                userview.accumulate("name", StringUtil.stripAllHtmlTag(AppUtil.processHashVariable(userviewDef.getName(), null, null, null, appDef)));
                 userview.accumulate("version", userviewDef.getAppVersion());
+                userview.accumulate("description", StringUtil.stripAllHtmlTag(userviewDef.getDescription()));
                 String url = WorkflowUtil.getHttpServletRequest().getContextPath() + "/web/userview/" + appDef.getId() + "/" + userviewDef.getId();
                 userview.accumulate("url", url);
+                if (userviewDef.getThumbnail() != null && !userviewDef.getThumbnail().isEmpty()) {
+                    userview.accumulate("imageUrl", userviewDef.getThumbnail());
+                }
                 userviews.put(userview);
             }
             app.put("userviews", userviews);
             apps.put(app);
         }
         root.put("apps", apps);
-        writeJson(writer, root, callback);
+        AppUtil.writeJson(writer, root, callback);
     }
 
     @RequestMapping("/json/apps/published/processes")
@@ -1043,7 +1122,181 @@ public class WorkflowJsonController {
             apps.put(app);
         }
         root.put("apps", apps);
-        writeJson(writer, root, callback);
+        AppUtil.writeJson(writer, root, callback);
+    }
+
+    @RequestMapping(value = "/json/apps/install", method = RequestMethod.POST)
+    public void installMarketplaceApp(Writer writer, HttpServletRequest request, HttpServletResponse response, @RequestParam(value = "callback", required = false) String callback, @RequestParam("url") final String url) throws IOException, JSONException {
+        JSONObject jsonObject = new JSONObject();
+        
+        // get URL InputStream
+        HttpClientBuilder builder = HttpClients.custom().setRedirectStrategy(new LaxRedirectStrategy());
+        CloseableHttpClient client = builder.build();
+        InputStream in = null;
+        try {
+            HttpGet get = new HttpGet(url);
+            HttpResponse httpResponse = client.execute(get);
+            in = httpResponse.getEntity().getContent();
+
+            if (httpResponse.getStatusLine().getStatusCode() == HttpServletResponse.SC_OK) {
+                // read InputStream
+                byte[] fileContent = readInputStream(in);
+
+                // import app
+                final AppDefinition appDef = appService.importApp(fileContent);
+                if (appDef != null) {
+                    TransactionTemplate transactionTemplate = (TransactionTemplate)AppUtil.getApplicationContext().getBean("transactionTemplate");
+                    transactionTemplate.execute(new TransactionCallback<Object>() {
+                        public Object doInTransaction(TransactionStatus ts) {
+                            appService.publishApp(appDef.getId(), null);
+                            return false;
+                        }
+                    });
+                    jsonObject.accumulate("appId", appDef.getAppId());
+                    jsonObject.accumulate("appName", appDef.getName());
+                    jsonObject.accumulate("appVersion", appDef.getVersion());
+                }
+            }
+        } finally {
+            try {
+                in.close();
+            } catch(IOException e) {
+            }
+            try {
+                client.close();
+            } catch(IOException e) {
+            }
+        }
+        
+        AppUtil.writeJson(writer, jsonObject, callback);
+    }
+    
+    /**
+     * Reads a specified InputStream, returning its contents in a byte array
+     * @param in
+     * @return
+     * @throws IOException 
+     */
+    protected byte[] readInputStream(InputStream in) throws IOException {
+        byte[] fileContent;
+        ByteArrayOutputStream out = null;
+        try {
+            out = new ByteArrayOutputStream();
+            BufferedInputStream bin = new BufferedInputStream(in);
+            int len;
+            byte[] buffer = new byte[4096];
+            while ((len = bin.read(buffer)) > 0) {
+                out.write(buffer, 0, len);
+            }
+            out.flush();
+            fileContent = out.toByteArray();
+            return fileContent;
+        } finally {
+            try {
+                if (out != null) {
+                    out.close();
+                }
+                if (in != null) {
+                    in.close();
+                }
+            } catch (IOException ex) {
+                LogUtil.error(getClass().getName(), ex, ex.getMessage());
+            }
+        }
+    }    
+    
+    @RequestMapping(value = "/json/apps/verify", method = RequestMethod.HEAD)
+    public void verifyUrl(Writer writer, HttpServletRequest request, HttpServletResponse response, @RequestParam("url") String url) throws IOException {
+        CloseableHttpClient client = HttpClients.custom().setRedirectStrategy(new LaxRedirectStrategy()).build();
+        try {
+            HttpHead head = new HttpHead(url);
+            HttpResponse httpResponse = client.execute(head);
+            response.setStatus(httpResponse.getStatusLine().getStatusCode());
+        } finally {
+            client.close();
+        }
+    }
+
+    @RequestMapping("/json/monitoring/activity/previous/(*:activityId)")
+    public void activityPrevious(HttpServletResponse response, Writer writer, @RequestParam(value = "callback", required = false) String callback, @RequestParam("activityId") String activityId, @RequestParam(value = "includeTools", required = false) String includeTools) throws JSONException, IOException {
+        JSONArray results = new JSONArray();
+        Collection<WorkflowActivity> activities = workflowManager.getPreviousActivities(activityId, Boolean.valueOf(includeTools));
+        if (activities == null) {
+            response.sendError(HttpServletResponse.SC_NOT_FOUND, "Activity not found.");
+            return;
+        }
+        for (Iterator<WorkflowActivity> i=activities.iterator(); i.hasNext();) {
+            WorkflowActivity activity = i.next();
+            String prevActivityId = activity.getId();
+            WorkflowActivity activityInfo = workflowManager.getRunningActivityInfo(prevActivityId);
+            double serviceLevelMonitor = workflowManager.getServiceLevelMonitorForRunningActivity(prevActivityId);
+            WorkflowActivity trackWflowActivity = workflowManager.getRunningActivityInfo(prevActivityId);
+
+            JSONObject jsonObject = new JSONObject();
+            jsonObject.accumulate("activityId", activity.getId());
+            jsonObject.accumulate("activityDefId", activity.getActivityDefId());
+            jsonObject.accumulate("type", activity.getType());
+            jsonObject.accumulate("processId", activity.getProcessId());
+            jsonObject.accumulate("processDefId", activity.getProcessDefId());
+            jsonObject.accumulate("processVersion", activity.getProcessVersion());
+            jsonObject.accumulate("processName", activity.getProcessName());
+            jsonObject.accumulate("activityName", activity.getName());
+            jsonObject.accumulate("description", activity.getDescription());
+            jsonObject.accumulate("participant", activityInfo.getPerformer());
+            jsonObject.accumulate("acceptedUser", activityInfo.getNameOfAcceptedUser());
+
+            //new added attribute
+            jsonObject.accumulate("serviceLevelMonitor", WorkflowUtil.getServiceLevelIndicator(serviceLevelMonitor));
+            jsonObject.accumulate("state", activityInfo.getState());
+            jsonObject.accumulate("createdTime", trackWflowActivity.getCreatedTime());
+            jsonObject.accumulate("dateLimit", trackWflowActivity.getLimit());
+            jsonObject.accumulate("dueDate", TimeZoneUtil.convertToTimeZone(trackWflowActivity.getDue(), null, AppUtil.getAppDateFormat()));
+            jsonObject.accumulate("delay", trackWflowActivity.getDelay());
+            jsonObject.accumulate("finishTime", TimeZoneUtil.convertToTimeZone(trackWflowActivity.getFinishTime(), null, AppUtil.getAppDateFormat()));
+            jsonObject.accumulate("timeConsumingFromDateCreated", trackWflowActivity.getTimeConsumingFromDateCreated());
+
+            String[] assignmentUsers = activityInfo.getAssignmentUsers();
+            for (String user : assignmentUsers) {
+                jsonObject.accumulate("assignee", user);
+            }
+            results.put(jsonObject);
+        }
+
+        AppUtil.writeJson(writer, results, callback);
+    }
+
+    @RequestMapping("/json/monitoring/activity/next/(*:activityId)")
+    public void activityNext(HttpServletResponse response, Writer writer, @RequestParam(value = "callback", required = false) String callback, @RequestParam("activityId") String activityId, @RequestParam(value = "includeTools", required = false) String includeTools) throws JSONException, IOException {
+        JSONArray results = new JSONArray();
+        appService.getAppDefinitionForWorkflowActivity(activityId);
+        Collection<WorkflowActivity> activities = workflowManager.getNextActivities(activityId, Boolean.valueOf(includeTools));
+        if (activities == null) {
+            response.sendError(HttpServletResponse.SC_NOT_FOUND, "Activity not found.");
+            return;
+        }
+        for (Iterator<WorkflowActivity> i=activities.iterator(); i.hasNext();) {
+            WorkflowActivity activity = i.next();
+            // formulate JSON result
+            JSONObject jsonObject = new JSONObject();
+            jsonObject.accumulate("activityId", activity.getId());
+            jsonObject.accumulate("activityDefId", activity.getActivityDefId());
+            jsonObject.accumulate("type", activity.getType());
+            jsonObject.accumulate("processId", activity.getProcessId());
+            jsonObject.accumulate("processDefId", activity.getProcessDefId());
+            jsonObject.accumulate("processVersion", activity.getProcessVersion());
+            jsonObject.accumulate("processName", activity.getProcessName());
+            jsonObject.accumulate("activityName", activity.getName());
+            jsonObject.accumulate("description", activity.getDescription());
+            jsonObject.accumulate("participant", activity.getPerformer());
+            String[] assignmentUsers = activity.getAssignmentUsers();
+            if (assignmentUsers != null) {
+                for (String user: assignmentUsers) {
+                    jsonObject.accumulate("assignee", user);
+                }
+            }
+            results.put(jsonObject);
+        }
+        AppUtil.writeJson(writer, results, callback);
     }
     
 }

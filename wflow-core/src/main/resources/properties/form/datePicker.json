@@ -3,10 +3,11 @@
     properties : [{
         name : 'id',
         label : '@@form.datepicker.id@@',
-        type : 'textfield',
+        type : 'autocomplete',
         required : 'True',
         regex_validation : '^[a-zA-Z0-9_]+$',
-        validation_message : '@@form.datepicker.invalidId@@'
+        validation_message : '@@form.datepicker.invalidId@@',
+        options_callback : 'FormBuilder.getAllFieldOptions'
     },
     {
         name : 'label',
@@ -57,12 +58,14 @@
     {
         name : 'startDateFieldId',
         label : '@@form.datepicker.startDateFieldId@@',
-        type : 'textfield'
+        type : 'selectbox',
+        options_callback : 'FormBuilder.getFieldOptions'
     },
     {
         name : 'endDateFieldId',
         label : '@@form.datepicker.endDateFieldId@@',
-        type : 'textfield'
+        type : 'selectbox',
+        options_callback : 'FormBuilder.getFieldOptions'
     },
     {
         name : 'currentDateAs',
@@ -84,6 +87,11 @@
     {
         label : '@@form.datepicker.ui@@',
         type : 'header'
+    },
+    {
+        name : 'placeholder',
+        label : '@@form.textfield.placeholder@@',
+        type : 'textfield'
     },
     {
         name : 'format',
@@ -125,6 +133,7 @@
     {
         name : 'workflowVariable',
         label : '@@form.datepicker.workflowVariable@@',
-        type : 'textfield'
+        type : 'autocomplete',
+        options_ajax : '[CONTEXT_PATH]/web/json/console/app[APP_PATH]/workflowVariable/options'
     }]
 }]

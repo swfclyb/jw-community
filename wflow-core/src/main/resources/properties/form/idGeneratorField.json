@@ -3,10 +3,11 @@
     properties : [{
         name : 'id',
         label : '@@form.idgeneratorfield.id@@',
-        type : 'textfield',
+        type : 'autocomplete',
         required : 'True',
         regex_validation : '^[a-zA-Z0-9_]+$',
-        validation_message : '@@form.idgeneratorfield.invalidId@@'
+        validation_message : '@@form.idgeneratorfield.invalidId@@',
+        options_callback : 'FormBuilder.getAllFieldOptions'
     },
     {
         name : 'label',
@@ -21,7 +22,9 @@
         label : '@@form.idgeneratorfield.envVariableName@@',
         type : 'textfield',
         required : 'True',
-        value : 'counter'
+        value : 'counter',
+        regex_validation : '^[\\.0-9a-zA-Z_-]+$',
+        validation_message : '@@form.idgeneratorfield.invalidId@@',
     },
     {
         name : 'format',
@@ -53,6 +56,7 @@
     {
         name : 'workflowVariable',
         label : '@@form.idgeneratorfield.workflowVariable@@',
-        type : 'textfield'
+        type : 'autocomplete',
+        options_ajax : '[CONTEXT_PATH]/web/json/console/app[APP_PATH]/workflowVariable/options'
     }]
 }]

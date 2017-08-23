@@ -91,7 +91,9 @@
     {
         name : 'fieldPassover',
         label : '@@userview.formmenu.fieldNamePassover@@',
-        type : 'textfield'
+        type : 'selectbox',
+        options_ajax_on_change : 'formDefId:formId',
+        options_ajax : '[CONTEXT_PATH]/web/json/console/app[APP_PATH]/form/columns/options'
     },
     {
         name : 'fieldPassoverMethod',
@@ -128,16 +130,14 @@
     {
         name : 'customHeader',
         label : '@@userview.formmenu.customHeader@@',
-        type : 'textarea',
-        cols : '20',
-        rows : '5'
+        type : 'codeeditor',
+        mode : 'html'
     },
     {
         name : 'customFooter',
         label : '@@userview.formmenu.customFooter@@',
-        type : 'textarea',
-        cols : '20',
-        rows : '5'
+        type : 'codeeditor',
+        mode : 'html'
     }]
 },
 {

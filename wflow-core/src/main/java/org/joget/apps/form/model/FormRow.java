@@ -5,13 +5,16 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Properties;
+import org.joget.apps.app.service.AppUtil;
 import org.joget.apps.form.service.FormUtil;
+import org.joget.commons.util.TimeZoneUtil;
 
 /**
  * Represents a row of form data
  */
 public class FormRow extends Properties {
-    Map<String, String> tempFilePathMap;
+    Map<String, String[]> tempFilePathMap;
+    Map<String, String[]> deleteFilePathMap;
 
     public FormRow() {
         super();
@@ -108,25 +111,86 @@ public class FormRow extends Properties {
         }
         return false;
     }
+
+    @Override
+    public synchronized int hashCode() {
+        return super.hashCode();
+    }
     
-    public Map<String, String> getTempFilePathMap() {
+    public Map<String, String[]> getTempFilePathMap() {
         return tempFilePathMap;
     }
     
-    public void setTempFilePathMap(Map<String, String> tempFilePathMap) {
+    public void setTempFilePathMap(Map<String, String[]> tempFilePathMap) {
         this.tempFilePathMap = tempFilePathMap;
     }
     
     public void putTempFilePath(String fieldId, String path) {
         if (tempFilePathMap == null) {
-            tempFilePathMap = new HashMap<String, String>();
+            tempFilePathMap = new HashMap<String, String[]>();
+        }
+        tempFilePathMap.put(fieldId, new String[]{path});
+    }
+    
+    public void putTempFilePath(String fieldId, String[] path) {
+        if (tempFilePathMap == null) {
+            tempFilePathMap = new HashMap<String, String[]>();
         }
         tempFilePathMap.put(fieldId, path);
     }
     
-    public String getTempFilePath(String fieldId) {
+    public String[] getTempFilePaths(String fieldId) {
         if (tempFilePathMap != null) {
             return tempFilePathMap.get(fieldId);
+        }
+        return null;
+    }
+    
+    public String getTempFilePath(String fieldId) {
+        if (tempFilePathMap != null) {
+            String[] paths = tempFilePathMap.get(fieldId);
+            if (paths != null && paths.length > 0) {
+                return paths[0];
+            }
+        }
+        return null;
+    }
+    
+    public Map<String, String[]> getDeleteFilePathMap() {
+        return deleteFilePathMap;
+    }
+    
+    public void setDeleteFilePathMap(Map<String, String[]> deleteFilePathMap) {
+        this.deleteFilePathMap = deleteFilePathMap;
+    }
+    
+    public void putDeleteFilePath(String fieldId, String path) {
+        if (deleteFilePathMap == null) {
+            deleteFilePathMap = new HashMap<String, String[]>();
+        }
+        deleteFilePathMap.put(fieldId, new String[]{path});
+    }
+    
+    public void putDeleteFilePath(String fieldId, String[] path) {
+        if (deleteFilePathMap == null) {
+            deleteFilePathMap = new HashMap<String, String[]>();
+        }
+        deleteFilePathMap.put(fieldId, path);
+    }
+    
+    public String[] getDeleteFilePaths(String fieldId) {
+        if (deleteFilePathMap != null) {
+            return deleteFilePathMap.get(fieldId);
+        }
+        return null;
+    }
+    
+    public String getDeleteFilePath(String fieldId) {
+        if (deleteFilePathMap != null) {
+            String[] paths = deleteFilePathMap.get(fieldId);
+            if (paths != null && paths.length > 0) {
+                return paths[0];
+            }
         }
         return null;
     }
@@ -136,9 +200,16 @@ public class FormRow extends Properties {
         Map files = row.getTempFilePathMap();
         if (files != null && !files.isEmpty()) {
             if (tempFilePathMap == null) {
-                tempFilePathMap = new HashMap<String, String>();
+                tempFilePathMap = new HashMap<String, String[]>();
             }
             tempFilePathMap.putAll(files);
+        }
+        Map deleteFiles = row.getDeleteFilePathMap();
+        if (deleteFiles != null && !deleteFiles.isEmpty()) {
+            if (deleteFilePathMap == null) {
+                deleteFilePathMap = new HashMap<String, String[]>();
+            }
+            deleteFilePathMap.putAll(deleteFiles);
         }
     }
     
@@ -147,7 +218,7 @@ public class FormRow extends Properties {
         Object oval = super.get(key);
        
         if (oval != null && oval instanceof Date) {
-            return oval.toString();
+            return TimeZoneUtil.convertToTimeZone((Date) oval, null, AppUtil.getAppDateFormat());
         } else {
             return super.getProperty(key);
         }

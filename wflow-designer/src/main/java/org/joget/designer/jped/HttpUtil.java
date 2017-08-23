@@ -12,12 +12,14 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.URLEncoder;
 import java.security.KeyManagementException;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.StringTokenizer;
 import javax.net.ssl.SSLException;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -103,6 +105,11 @@ public class HttpUtil {
             }
         });
 
+        // set csrf token in URL
+        if (url.contains("?" + Designer.TOKEN_NAME)) {
+            url = url.substring(0, url.indexOf("?" + Designer.TOKEN_NAME));
+        }
+        url += "?" + Designer.TOKEN_NAME + "=" + URLEncoder.encode(Designer.TOKEN_VALUE, "UTF-8");
         // Prepare a request object
         HttpPost httpRequest = new HttpPost(url);
         if (file != null) {
@@ -119,6 +126,9 @@ public class HttpUtil {
                 httpRequest.setEntity(entity);
             }
         }
+        // set referer header
+        String referer = "http://" + Designer.DOMAIN;
+        httpRequest.addHeader("Referer", referer);
         
         // Set session cookie
         if (cookieStore == null) {
@@ -216,8 +226,19 @@ public class HttpUtil {
                         }
                     }
 
-                    // repeat request with username and password
-                    contents = HttpUtil.httpPost(cookieStore, url, port, sessionId, cookieDomain, cookiePath, username, credentials, true, true, filename, file);
+                    // set new csrf token
+                    String tokenAttr = "\"token\":\"";
+                    if (ssoResponse.contains(tokenAttr)) {
+                        String csrfToken = ssoResponse.substring(ssoResponse.indexOf(tokenAttr) + tokenAttr.length(), ssoResponse.length()-2);
+                        StringTokenizer st = new StringTokenizer(csrfToken, "=");
+                        if (st.countTokens() == 2) {
+                            Designer.TOKEN_NAME = st.nextToken();
+                            Designer.TOKEN_VALUE = st.nextToken();
+                        }
+                    }
+
+                    // repeat request with session cookie
+                    contents = HttpUtil.httpPost(cookieStore, url, port, sessionId, cookieDomain, cookiePath, null, null, true, true, filename, file);
 
                     // return contents
                     return contents;
@@ -236,8 +257,9 @@ public class HttpUtil {
             // If the response does not enclose an entity, there is no need
             // to worry about connection release
             if (entity != null) {
-                InputStream instream = entity.getContent();
+                InputStream instream = null;
                 try {
+                    instream = entity.getContent();
                     contents = "";
                     BufferedReader reader = new BufferedReader(new InputStreamReader(instream, "UTF-8"));
                     String line = reader.readLine();
@@ -263,16 +285,18 @@ public class HttpUtil {
                 } finally {
 
                     // Closing the input stream will trigger connection release
-                    instream.close();
-
+                    if (instream != null) {
+                        instream.close();
+                    }
+                    
                 }
             }    
         } finally {
             // When HttpClient instance is no longer needed,
-            // shut down the connection manager to ensure
-            // immediate deallocation of all system resources
-            httpClient.close();
-        }    
+                // shut down the connection manager to ensure
+                // immediate deallocation of all system resources
+                httpClient.close();
+        }
         return contents;
     }
     

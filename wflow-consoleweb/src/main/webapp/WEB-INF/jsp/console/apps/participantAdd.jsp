@@ -2,7 +2,7 @@
 
 <commons:popupHeader />
     <div id="main-body-header">
-        <fmt:message key="console.process.config.label.mapParticipants"/> - <c:out value=" ${param.participantName} (${participantId})" escapeXml="true" />
+        <fmt:message key="console.process.config.label.mapParticipants"/> - <ui:stripTag html="${param.participantName}"/> <c:out value="(${participantId})" escapeXml="true" />
     </div>
     <div id="main-body-content" style="text-align: left">
         <div id="userTabView">
@@ -64,7 +64,7 @@
                                                var="JsonGroupDataTable"
                                                divToUpdate="groupList"
                                                jsonData="data"
-                                               rowsPerPage="10"
+                                               rowsPerPage="15"
                                                width="100%"
                                                sort="name"
                                                desc="false"
@@ -96,7 +96,7 @@
                                                var="JsonUserDataTable"
                                                divToUpdate="userList"
                                                jsonData="data"
-                                               rowsPerPage="10"
+                                               rowsPerPage="15"
                                                width="100%"
                                                sort="username"
                                                desc="false"
@@ -182,7 +182,7 @@
                                                var="JsonHodDataTable"
                                                divToUpdate="departmentHodList"
                                                jsonData="data"
-                                               rowsPerPage="10"
+                                               rowsPerPage="15"
                                                width="100%"
                                                sort="name"
                                                desc="false"
@@ -215,7 +215,7 @@
                                                var="JsonDeptDataTable"
                                                divToUpdate="departmentList"
                                                jsonData="data"
-                                               rowsPerPage="10"
+                                               rowsPerPage="15"
                                                width="100%"
                                                sort="name"
                                                desc="false"
@@ -274,7 +274,7 @@
                        var="JsonPluginDataTable"
                        divToUpdate="pluginList"
                        jsonData="data"
-                       rowsPerPage="10"
+                       rowsPerPage="15"
                        width="100%"
                        sort="name"
                        desc="false"

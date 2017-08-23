@@ -151,6 +151,9 @@ public class User implements Serializable, Auditable {
     }
 
     public Boolean getReadonly() {
+        if (!readonly && getPassword() == null) {
+            readonly = true;
+        }
         return readonly;
     }
 

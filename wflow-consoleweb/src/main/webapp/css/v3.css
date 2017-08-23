@@ -601,7 +601,6 @@ img {
     border-radius: 1px;
 }
 #main-action-help {
-    background: url(../images/v3/console/icn_form_help.png) 0 0 no-repeat; 
     display: block;
     width: 16px;
     height: 16px;
@@ -1231,13 +1230,16 @@ div.view .main-body-content-subheader{
 
 .pluginConfig .property-editor-property-container {
     height: 100%;
-    min-height: 320px;
 }
 
 .form-row.plugin-config i{
     display:block;
     font-size:11px;
     color:#555;
+}
+
+.form-row .form-input select {
+    max-width: 100%;
 }
 
 div.tick {
@@ -1452,7 +1454,7 @@ span.dot_yellow{
 #runApps #categories a.category {
     color: #535353;
     text-decoration: none;
-    font-family: "Lucida Sans",Arial,Verdana,sans-serif;
+    font-family: Arial,Verdana,sans-serif;
     margin: 0px 5px;
 }
 #runApps #categories a.category-selected {
@@ -1469,11 +1471,11 @@ span.dot_yellow{
     margin-top: 10px;
     min-height: 100px;
     padding-bottom: 10px;
-    font-family: "Lucida Sans",Arial,Verdana,sans-serif;
+    font-family: Arial,Verdana,sans-serif;
     color: #696969;
 }
 #runApps .appdiv h3, #content h3 {
-    font-family: "Lucida Sans",Arial,Verdana,sans-serif;
+    font-family: Arial,Verdana,sans-serif;
     color: #535353;
     margin: 10px 0px 0px 0px;
     font-weight: normal;        
@@ -1614,7 +1616,7 @@ body#login {
     padding: 2px 20px;
     width: 100%;
     height: auto;
-    font-family: Lucida Sans, Arial, sans-serif;
+    font-family: Arial, sans-serif;
     font-size: 13px;
 }
 #nv h4 {

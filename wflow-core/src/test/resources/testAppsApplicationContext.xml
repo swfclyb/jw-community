@@ -10,12 +10,9 @@
        http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-2.5.xsd
        http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-2.5.xsd">
 
-    <context:annotation-config/>
-    <context:component-scan base-package="org.joget.apps"/>
+    <import resource="classpath:appsApplicationContext.xml" />
 
-    <!-- Enable annotation-based validation using Bean Validation Framework -->
-    <bean id="configurationLoader"
-            class="org.springmodules.validation.bean.conf.loader.annotation.AnnotationBeanValidationConfigurationLoader"/>
-    <bean id="validator" class="org.springmodules.validation.bean.BeanValidator"
-            p:configurationLoader-ref="configurationLoader"/>
+    <context:annotation-config/>
+    <context:component-scan base-package="org.joget"/>
+
 </beans>

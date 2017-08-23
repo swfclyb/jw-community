@@ -3,10 +3,11 @@
     properties : [{
         name : 'id',
         label : '@@form.fileupload.id@@',
-        type : 'textfield',
+        type : 'autocomplete',
         required : 'True',
         regex_validation : '^[a-zA-Z0-9_]+$',
-        validation_message : '@@form.fileupload.invalidId@@'
+        validation_message : '@@form.fileupload.invalidId@@',
+        options_callback : 'FormBuilder.getAllFieldOptions'
     },
     {
         name : 'label',
@@ -54,6 +55,44 @@
         value : '@@form.fileupload.fileType.msg.invalidFileType@@'
     },
     {
+        name : 'removeFile',
+        label : '@@form.fileupload.removeFile@@',
+        type : 'checkbox',
+        value : 'false',
+        options : [{
+            value : 'true',
+            label : ''
+        }]
+    },
+    {
+        label : '@@form.section.permission@@',
+        type : 'header'
+    },
+    {
+        name:'permissionType',
+        label:'@@form.section.permission@@',
+        type:'selectbox',
+        value : '',
+        options : [{
+            value : '', label : '@@form.fileupload.permission.loggedInUsers@@'
+        },{
+            value : 'public', label : '@@form.fileupload.permission.public@@'
+        },{
+            value : 'custom', label : '@@form.fileupload.permission.custom@@'
+        }]
+    },
+    {
+        name:'permissionPlugin',
+        label:'@@form.fileupload.customPermission@@',
+        type:'elementselect',
+        control_field: 'permissionType',
+        control_value: 'custom',
+        control_use_regex: 'false',
+        required : 'true',
+        options_ajax:'[CONTEXT_PATH]/web/property/json/getElements?classname=org.joget.apps.form.model.FormPermission',
+        url:'[CONTEXT_PATH]/web/property/json/getPropertyOptions'
+    },
+    {
         label : '@@form.fileupload.ui@@',
         type : 'header'
     },
@@ -61,6 +100,16 @@
         name : 'size',
         label : '@@form.fileupload.size@@',
         type : 'textfield'
+    },
+    {
+        name : 'multiple',
+        label : '@@form.fileupload.multiple@@',
+        type : 'checkbox',
+        value : 'False',
+        options : [{
+            value : 'true',
+            label : ''
+        }]
     },
     {
         name : 'readonly',
@@ -71,6 +120,11 @@
             value : 'true',
             label : ''
         }]
+    },
+    {
+        name : 'padding',
+        label : '@@form.fileupload.dropzonePadding@@',
+        type : 'textfield'
     },
     {
         name : 'attachment',

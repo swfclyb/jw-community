@@ -6,8 +6,19 @@ FormBuilder = {
     contextPath: "/jw",
     elementPreviewUrl: "/web/fbuilder/element/preview",
     formPreviewUrl: "/web/fbuilder/form/preview/",
-    tinymceUrl: "/js/tiny_mce/tiny_mce.js",
     originalJson: "",
+    appId: "",
+    appVersion: "",
+    formId: "",
+    existingFields: [],
+    
+    //undo & redo feature
+    tempJson : '',
+    isCtrlKeyPressed : false,
+    isAltKeyPressed : false,
+    undoStack : new Array(),
+    redoStack : new Array(),
+    undoRedoMax : 50,
 
     init: function(id) {
 
@@ -26,11 +37,15 @@ FormBuilder = {
         FormBuilder.initPalette();
 
         // initialize canvas
+        FormBuilder.formId = id;
         FormBuilder.initCanvas(id);
+        
+        FormBuilder.initUndoRedo();
 
-        var formJson = FormBuilder.generateJSON();
+        var formJson = FormBuilder.generateJSON(true);
         
         FormBuilder.originalJson = formJson;
+        $("#form-json-original").val(FormBuilder.originalJson);
     },
 
     initPalette: function() {
@@ -73,7 +88,7 @@ FormBuilder = {
             connectWith: ".form-container",
             items: ".form-section",
             stop: function() {
-                FormBuilder.generateJSON();
+                FormBuilder.generateJSON(true);
             },
             tolerance: "pointer",
             revertDuration: 100,
@@ -110,6 +125,48 @@ FormBuilder = {
         // initialize new sections and columns
         FormBuilder.initSectionsAndColumns();
     },
+    
+    initUndoRedo : function() {
+        //Shortcut key
+        $(document).keyup(function (e) {
+            if(e.which == 17){
+                FormBuilder.isCtrlKeyPressed=false;
+            } else if(e.which === 18){
+                FormBuilder.isAltKeyPressed = false;
+            }
+        }).keydown(function (e) {
+            if(e.which == 17){
+                FormBuilder.isCtrlKeyPressed=true;
+            } else if(e.which === 18){
+                FormBuilder.isAltKeyPressed = true;
+            }
+            if ($(".property-editor-container:visible").length === 0) {
+                if(e.which == 90 && FormBuilder.isCtrlKeyPressed == true && !FormBuilder.isAltKeyPressed) { //CTRL+Z - undo
+                    FormBuilder.undo();
+                    return false;
+                }
+                if(e.which == 89 && FormBuilder.isCtrlKeyPressed == true && !FormBuilder.isAltKeyPressed) { //CTRL+Y - redo
+                    FormBuilder.redo();
+                    return false;
+                }
+            }
+        });
+        
+        //add control
+        $("#builder-steps").after("<div class='controls'></div>");
+        $(".controls").append("<a class='action-undo disabled' title='"+get_fbuilder_msg('fbuilder.undo.disbaled.tip')+"'><i class='fa fa-undo'></i> "+get_fbuilder_msg('fbuilder.undo')+"</a>&nbsp;|&nbsp;");
+        $(".controls").append("<a class='action-redo disabled' title='"+get_fbuilder_msg('fbuilder.redo.disabled.tip')+"'><i class='fa fa-repeat'></i> "+get_fbuilder_msg('fbuilder.redo')+"</a>");
+        
+        $(".action-undo").click(function(){
+            FormBuilder.undo();
+            return false;
+        });
+        
+        $(".action-redo").click(function(){
+            FormBuilder.redo();
+            return false;
+        });
+    },
 
     initElementDefinition: function(elementClass, properties, template) {
         FormBuilder.elementPropertyDefinitions[elementClass] = properties;
@@ -122,6 +179,9 @@ FormBuilder = {
         if (id) {
             form.dom.properties.id = id;
         }
+        
+        //retrieve existing field ids
+        FormBuilder.retrieveExistingFieldIds();
     },
 
     initSectionsAndColumns: function() {
@@ -134,16 +194,31 @@ FormBuilder = {
         $(".form-section").each(function(index, section) {
             var columnCount = $(section).children(".form-column").length;
             if (columnCount == 0) {
-                FormBuilder.addColumn(section);
+                FormBuilder.addColumn(section, false);
             }
+        });
+
+        $(".form-section").on("mouseenter", function() {
+            FormBuilder.updatePasteIcon();
         });
 
         // make columns sortable
         $(".form-section").sortable({
             connectWith: ".form-section",
             items: ".form-column",
+            start: function( event, ui ) {
+                FormBuilder.tempJson = FormBuilder.generateJSON();
+            },
             stop: function() {
-                FormBuilder.generateJSON();
+                $(".form-section > .form-clear.bottom").remove();
+                
+                FormBuilder.initColumnSizes();
+                FormBuilder.initSectionsAndColumns();
+                    
+                FormBuilder.addToUndo(FormBuilder.tempJson);
+                FormBuilder.generateJSON(true);
+                
+                $(".form-section").append("<div class='form-clear bottom'></div>");
             },
             tolerance: "pointer",
             revertDuration: 100,
@@ -154,8 +229,12 @@ FormBuilder = {
         $(".form-column").sortable({
             connectWith: ".form-column",
             items: ".form-cell",
+            start: function( event, ui ) {
+                FormBuilder.tempJson = FormBuilder.generateJSON();
+            },
             stop: function() {
-                FormBuilder.generateJSON();
+                FormBuilder.addToUndo(FormBuilder.tempJson);
+                FormBuilder.generateJSON(true);
             },
             tolerance: "pointer",
             revertDuration: 100,
@@ -164,7 +243,12 @@ FormBuilder = {
 
         // make section dropabble
         $(".form-section").droppable({
+            over: function( event, ui ) {
+                FormBuilder.tempJson = FormBuilder.generateJSON();
+            },
             drop: function(event, ui) {
+                FormBuilder.addToUndo(FormBuilder.tempJson);
+                $(".form-section > .form-clear.bottom").remove();
                 var obj = $(ui.draggable);
                 if (obj.hasClass("form-palette-column")) {
                     FormBuilder.decorateColumn(obj);
@@ -174,8 +258,9 @@ FormBuilder = {
                         FormBuilder.initSectionsAndColumns();
                     }, 1000);
                 }
+                $(".form-section").append("<div class='form-clear bottom'></div>");
             },
-            activeClass: "form-cell-highlight",
+            activeClass: "form-section-highlight",
             accept: ".form-palette-column, .form-column",
             greedy: true,
             tolerance: "touch"
@@ -183,7 +268,11 @@ FormBuilder = {
 
         // make column droppable
         $(".form-column").droppable({
+            over: function( event, ui ) {
+                FormBuilder.tempJson = FormBuilder.generateJSON();
+            },
             drop: function(event, ui) {
+                FormBuilder.addToUndo(FormBuilder.tempJson);
                 var column = $(this);
                 // check for drop within the column
                 if (column.hasClass("form-column") && (column.parent().find(".ui-sortable-placeholder").length > 0)) {
@@ -216,14 +305,15 @@ FormBuilder = {
             FormBuilder.decorateElementOptions(obj);
         });
 
-        FormBuilder.generateJSON();
+        FormBuilder.generateJSON(true);
     },
 
     initColumnSizes: function() {
         // recalculate column sizes
         $(".form-section").each(function() {
+            
             // find number of columns
-            var tempCount = $(this).children(".form-pallete-column").length; // ignore div from palette
+            var tempCount = $(this).children(".form-palette-column").length; // ignore div from palette
             if (tempCount == 0) {
                 tempCount =  $(this).children(".ui-sortable-helper").length; // ignore sortable placeholder
             }
@@ -278,7 +368,7 @@ FormBuilder = {
         if ($(obj).hasClass("form-palette-section")) {
             $(obj).removeClass("form-palette-section").addClass("form-section");
         }
-
+        
         if ($(obj).find(".form-section-title").length == 0) {
             $(obj).prepend("<div class='form-section-title'><span>"+get_fbuilder_msg("fbuilder.section")+"</span><div>");
         }
@@ -335,15 +425,27 @@ FormBuilder = {
         var optionHtml = "<span class='form-palette-options'>";
         if ($(obj).hasClass("form-section")) {
             // add buttons for section
-            optionHtml += "<button class='form-palette-sec' title='"+get_fbuilder_msg("fbuilder.addSection")+"'>"+get_fbuilder_msg("fbuilder.addSection")+"</button>";
-            optionHtml += "<button class='form-palette-col' title='"+get_fbuilder_msg("fbuilder.addColumn")+"'>"+get_fbuilder_msg("fbuilder.addColumn")+"</button>";
-            optionHtml += "<button class='form-palette-edit' title='"+get_fbuilder_msg("fbuilder.editSection")+"'>"+get_fbuilder_msg("fbuilder.editSection")+"</button>";
-            optionHtml += "<button class='form-palette-remove' title='"+get_fbuilder_msg("fbuilder.deleteSection")+"'>"+get_fbuilder_msg("fbuilder.deleteSection")+"</button>";
+            optionHtml += "<button class='form-palette-edit' title='"+get_fbuilder_msg("fbuilder.editSection")+"'><i class='fa fa-edit'></i><span>"+get_fbuilder_msg("fbuilder.editSection")+"</span></button>";
+            optionHtml += "<button class='form-palette-copy' title='"+get_fbuilder_msg("fbuilder.copy")+"'><i class='fa fa-copy'></i><span>"+get_fbuilder_msg("fbuilder.copy")+"</span></button>";
+            optionHtml += "<button class='form-palette-col' title='"+get_fbuilder_msg("fbuilder.addColumn")+"'><i class='fa fa-columns'></i><span>"+get_fbuilder_msg("fbuilder.addColumn")+"</span></button>";
+            optionHtml += "<button class='form-palette-comment' title='"+get_fbuilder_msg("fbuilder.comment")+"'><i class='fa fa-commenting-o '></i><span>"+get_fbuilder_msg("fbuilder.comment")+"</span></button>";
+            optionHtml += "<button class='form-palette-remove' title='"+get_fbuilder_msg("fbuilder.deleteSection")+"'><i class='fa fa-close'></i><span>"+get_fbuilder_msg("fbuilder.deleteSection")+"</span></button>";
+            $(obj).append("<div class='form-clear bottom'></div>");
+            
+            //comment
+            $(obj).find(".section-comment").remove();
+            var dom = $(obj)[0].dom;
+            var comment = dom.properties["comment"];
+            if (comment !== undefined && comment !== null && comment !== "") {
+                $(obj).find(".form-section-title").before('<div class="section-comment"><strong>'+get_fbuilder_msg("fbuilder.comment")+':</strong> <div class="editable">'+UI.escapeHTML(comment).replace(/(?:\r\n|\r|\n)/g, '<br />')+'</div></div>');
+                FormBuilder.initEditableComment(obj);
+            }
         } else if ($(obj).hasClass("form-column")) {
             // add buttons for column
-            optionHtml += "<button class='form-palette-edit' title='"+get_fbuilder_msg("fbuilder.editColumn")+"'>"+get_fbuilder_msg("fbuilder.editColumn")+"</button>";
+            optionHtml += "<button class='form-palette-edit' title='"+get_fbuilder_msg("fbuilder.editColumn")+"'><i class='fa fa-edit'></i><span>"+get_fbuilder_msg("fbuilder.editColumn")+"</span></button>";
+            optionHtml += "<button class='form-palette-paste column disabled' title='"+get_fbuilder_msg("fbuilder.pasteElement")+"'><i class='fa fa-paste'></i><span>"+get_fbuilder_msg("fbuilder.pasteElement")+"</span></button>";
             if ($(obj).siblings(".form-column").length > 0) {
-                optionHtml += "<button class='form-palette-remove' title='"+get_fbuilder_msg("fbuilder.deleteColumn")+"'>"+get_fbuilder_msg("fbuilder.deleteColumn")+"</button>";
+                optionHtml += "<button class='form-palette-remove' title='"+get_fbuilder_msg("fbuilder.deleteColumn")+"'><i class='fa fa-close'></i><span>"+get_fbuilder_msg("fbuilder.deleteColumn")+"</span></button>";
             }
             
             //Update column label
@@ -355,23 +457,29 @@ FormBuilder = {
             }else{
                 $(obj).find(".form-column-label").remove();
             }
-            
-        } else  {
+        } else if (!$(obj).hasClass("form-container ")) {
             // add buttons for other elements
-            optionHtml += "<button class='form-palette-edit' title='"+get_fbuilder_msg("fbuilder.edit")+"'>"+get_fbuilder_msg("fbuilder.edit")+"</button>";
-            optionHtml += "<button class='form-palette-remove' title='"+get_fbuilder_msg("fbuilder.delete")+"'>"+get_fbuilder_msg("fbuilder.delete")+"</button>";
+            optionHtml += "<button class='form-palette-edit' title='"+get_fbuilder_msg("fbuilder.edit")+"'><i class='fa fa-edit'></i><span>"+get_fbuilder_msg("fbuilder.edit")+"</span></button>";
+            optionHtml += "<button class='form-palette-copy' title='"+get_fbuilder_msg("fbuilder.copy")+"'><i class='fa fa-copy'></i><span>"+get_fbuilder_msg("fbuilder.copy")+"</span></button>";
+            optionHtml += "<button class='form-palette-remove' title='"+get_fbuilder_msg("fbuilder.delete")+"'><i class='fa fa-close'></i><span>"+get_fbuilder_msg("fbuilder.delete")+"</span></button>";
         }
         optionHtml += "</span><div class='form-clear'></div>";
+        
+        if ($(obj).hasClass("form-section")) {
+            optionHtml += "<span class='form-palette-options bottom'>";
+            optionHtml += "<button class='form-palette-sec' title='"+get_fbuilder_msg("fbuilder.addSection")+"'><i class='fa fa-plus'></i><span>"+get_fbuilder_msg("fbuilder.addSection")+"</span></button>";
+            optionHtml += "<button class='form-palette-paste section disabled' title='"+get_fbuilder_msg("fbuilder.pasteSection")+"'><i class='fa fa-paste'></i><span>"+get_fbuilder_msg("fbuilder.pasteSection")+"</span></button>";
+            optionHtml += "</span><div class='form-clear'></div>";
+        }    
+        
         var optionDiv = $(optionHtml);
 
         // handle deletion
         $(optionDiv).children(".form-palette-remove").click(function() {
-            if (confirm(get_fbuilder_msg("fbuilder.delete.confirm"))) {
-                var element = $(this).parent().parent();
-                FormBuilder.deleteElement(element);
-            }
+            var element = $(this).parent().parent();
+            FormBuilder.deleteElement(element);
             return false;
-        })
+        });
 
         // handle edit
         $(optionDiv).children(".form-palette-edit").click(function() {
@@ -383,25 +491,59 @@ FormBuilder = {
 
         // handle add section
         $(optionDiv).children(".form-palette-sec").click(function() {
+            var position = ($(this).parent()).hasClass("top")?"before":"after";
             var element = $(this).parent().parent();
             if (element.hasClass("form-section")) {
-                if (true || confirm(get_fbuilder_msg("fbuilder.addSection.confirm"))) {
-                    FormBuilder.addSection(element);
-                }
+                FormBuilder.addToUndo();
+                FormBuilder.addSection(element, position);
             }
             return false;
-        })
+        });
 
         // handle add column
         $(optionDiv).children(".form-palette-col").click(function() {
             var element = $(this).parent().parent();
             if (element.hasClass("form-section")) {
-                if (true || confirm(get_fbuilder_msg("fbuilder.addColumn.confirm"))) {
-                    FormBuilder.addColumn(element);
-                }
+                FormBuilder.addToUndo();
+                FormBuilder.addColumn(element);
             }
             return false;
-        })
+        });
+
+        // handle copy
+        $(optionDiv).children(".form-palette-copy").click(function() {
+            var element = $(this).parent().parent();
+            FormBuilder.copy(element);
+            return false;
+        });
+        
+        // handle paste
+        $(optionDiv).children(".form-palette-paste").click(function() {
+            if ($(this).hasClass("disabled")) {
+                alert(get_fbuilder_msg("fbuilder.noCopiedItem"));
+                return false;
+            }
+            var position = ($(this).parent()).hasClass("top")?"before":"after";
+            var element = $(this).parent().parent();
+            if ($(element).hasClass("form-column")) {
+                position = "inner";
+            }
+            FormBuilder.paste(element, position);
+            return false;
+        });
+        
+        // handle comment
+        $(optionDiv).children(".form-palette-comment").click(function() {
+            var element = $(this).parent().parent();
+            
+            if ($(element).find(".section-comment").length === 0) {
+                $(obj).find(".form-section-title").before('<div class="section-comment"><strong>'+get_fbuilder_msg("fbuilder.comment")+':</strong> <div class="editable"></div></div>');
+                FormBuilder.initEditableComment(obj);
+            }
+            $(obj).find('.section-comment .editable').click();
+            
+            return false;
+        });
 
         // add option bar
         $(obj).prepend(optionDiv);
@@ -413,8 +555,60 @@ FormBuilder = {
             $(optionDiv).css("display", "none");
             $(optionDiv).css("visibility", "hidden");
         });
+        $(obj).on("click", function() {
+            if ($(optionDiv).css("display") === "block") {
+                $(optionDiv).css("display", "none");
+                $(optionDiv).css("visibility", "hidden");
+            } else {
+                if ($(obj).children().length > 0) {
+                    var $family = $(obj).find("*");
+                    $(".form-palette-options").not($family).css("display", "none");
+                    $(".form-palette-options").not($family).css("visibility", "hidden");
+                }
+                $(optionDiv).css("display", "block");
+                $(optionDiv).css("visibility", "visible");
+            }
+        });
 
     },
+    
+    initEditableComment: function(obj) {
+        $(obj).find(".section-comment .editable").editable(function(value, settings){
+            FormBuilder.addToUndo();
+            
+            $(obj)[0].dom.properties["comment"] = value;
+            if(value === ""){
+                $(obj).find(".section-comment").remove();
+            } else {
+                value = UI.escapeHTML(value).replace(/(?:\r\n|\r|\n)/g, '<br />');
+            }
+            FormBuilder.generateJSON(true);
+            return value;
+        },{
+            type      : 'textarea',
+            tooltip   : '' ,
+            select    : true ,
+            style     : 'inherit',
+            cssclass  : 'LabelEditableField',
+            onblur    : 'submit',
+            rows      : 4,
+            width     : '90%',
+            minwidth  : 80,
+            submit  : get_fbuilder_msg("fbuilder.save"),
+            data: function(value, settings) {
+                if (value !== "") {
+                    return value.replace(/<br\s*[\/]?>/gi, "\n");
+                } else {
+                    return value;
+                }
+            }
+        });
+        $(obj).find(".section-comment").on("click", function(){
+            if ($(obj).find('.section-comment .editable form').length === 0) {
+                $(obj).find('.section-comment .editable').click();
+            }
+        });
+    }, 
 
     updateElementDOM: function(element) {
         // set class name
@@ -429,6 +623,7 @@ FormBuilder = {
         }
         dom.properties = property;
         $(element)[0].dom = dom;
+        $(element).attr("element-id", property.id);
     },
     
     generateElementId: function(element, elementClass, prefix) {
@@ -487,7 +682,6 @@ FormBuilder = {
 
         // show property dialog
         var options = {
-            tinyMceScript: FormBuilder.contextPath + FormBuilder.tinymceUrl,
             contextPath: FormBuilder.contextPath,
             propertiesDefinition : elementOptions,
             propertyValues : elementProperty,
@@ -497,6 +691,8 @@ FormBuilder = {
                 $("#form-property-editor").html("");
             },
             saveCallback: function(container, properties) {
+                FormBuilder.addToUndo();
+                
                 // hide dialog
                 FormBuilder.propertyDialog.hide();
 
@@ -516,7 +712,7 @@ FormBuilder = {
                 {
                     title: 'Property Editor',
                     closeable: true,
-                    draggable: false,
+                    draggable: true,
                     show: false,
                     fixed: true
                 });
@@ -531,11 +727,12 @@ FormBuilder = {
     updateElementProperties: function(element, properties) {
         // update element properties
         var dom = $(element)[0].dom;
+        $(element).attr("element-id", properties.id);
         if (dom) {
             dom.properties = properties;
         }
 
-        FormBuilder.generateJSON();
+        FormBuilder.generateJSON(true);
     },
 
     refreshElementTemplate: function(element) {
@@ -559,7 +756,7 @@ FormBuilder = {
         FormBuilder.decorateElementOptions(element);
     },
 
-    retrieveElementHTML: function(element, dom, elementClass, elementProperty) {
+    retrieveElementHTML: function(element, dom, elementClass, elementProperty, callback) {
 
         // temp hard-coded to handle sections
         if (elementClass == 'org.joget.apps.form.model.Section') {
@@ -586,6 +783,9 @@ FormBuilder = {
                 data: {"json": jsonStr },
                 url: FormBuilder.contextPath + FormBuilder.elementPreviewUrl,
                 dataType : "text",
+                beforeSend: function (request) {
+                   request.setRequestHeader(ConnectionManager.tokenName, ConnectionManager.tokenValue);
+                },
                 success: function(response) {
                     var newElement = $(response);
 
@@ -603,6 +803,15 @@ FormBuilder = {
                         FormBuilder.decorateElement(newElement);
                     }
                     $(element).replaceWith(newElement);
+                    
+                    if ($(element).is("form")) {
+                        FormBuilder.initCanvas($(element).attr("id"));
+                        $("#loading").remove();
+                    }
+                    
+                    if (callback !== undefined && $.type(callback) === "function") {
+                        callback();
+                    }
                 }
             });
 
@@ -615,6 +824,7 @@ FormBuilder = {
     },
 
     deleteElement: function(element) {
+        FormBuilder.addToUndo();
         FormBuilder.unloadElement(element);
         
         // delete element
@@ -634,13 +844,18 @@ FormBuilder = {
         }
     },
 
-    addSection: function(parent) {
+    addSection: function(parent, position) {
         // add a new section
         var section = $("<div class='form-section' element-class='org.joget.apps.form.model.Section' element-property='{label:\""+get_fbuilder_msg("fbuilder.section")+"\"}'></div>");
         FormBuilder.decorateSection(section);
         if (parent) {
+            if (position !== undefined && position === "before") {
             // add after an existing section
+                $(parent).before(section);
+            } else {
+                // add after an existing section
             $(parent).after(section);
+            }
         } else {
             $(".form-container").append(section);
         }
@@ -648,12 +863,15 @@ FormBuilder = {
         return section;
     },
 
-    addColumn: function(section) {
+    addColumn: function(section, initSectionsAndColumns) {
         // add a new column
         var column = $("<div class='form-column' element-class='org.joget.apps.form.model.Column'></div>");
-        $(section).append(column);
+        $(section).find(".form-clear.bottom").before(column);
         FormBuilder.decorateColumn(column);
-        FormBuilder.initSectionsAndColumns();
+        
+        if (initSectionsAndColumns === undefined || initSectionsAndColumns) {
+            FormBuilder.initSectionsAndColumns();
+        }
         return column;
     },
 
@@ -674,12 +892,13 @@ FormBuilder = {
     },
 
     previewForm: function(){
-        $('#form-preview').attr("action", FormBuilder.contextPath + FormBuilder.formPreviewUrl);
+        var securityToken = ConnectionManager.tokenName + "=" + ConnectionManager.tokenValue;
+        $('#form-preview').attr("action", FormBuilder.contextPath + FormBuilder.formPreviewUrl + "?" + securityToken);
         $('#form-preview').submit();
         return false;
     },
 
-    generateJSON: function() {
+    generateJSON: function(triggerChange) {
         var form = new Object();
         form.className = "org.joget.apps.form.model.Form";
 
@@ -730,8 +949,12 @@ FormBuilder = {
         var json = JSON.encode(form);
 
         // set output
-        $("#form-json").text("");
-        $("#form-json").text(json);
+        $("#form-json").val("");
+        $("#form-json").val(json);
+        
+        if (triggerChange) {
+            $("#form-json").trigger("change");
+        }
 
         return json;
     },
@@ -786,15 +1009,18 @@ FormBuilder = {
         $("#form-properties").html("");
         var formProperties = form.dom.properties;
         var options = {
-            tinyMceScript: FormBuilder.tinymceUrl,
             contextPath: FormBuilder.contextPath,
             propertiesDefinition: formOptions,
             propertyValues: formProperties,
             showCancelButton: false,
             closeAfterSaved: false,
             saveCallback: function(container, properties) {
+                FormBuilder.addToUndo();
                 // update form properties
                 FormBuilder.updateElementProperties(form, properties);
+                
+                //retrieve existing fields
+                FormBuilder.retrieveExistingFieldIds();
 
                 // change to design tab
                 $("#builder-step-design").trigger("click");
@@ -803,6 +1029,59 @@ FormBuilder = {
         $('#form-properties').propertyEditor(options);
 
         return false;
+    },
+    
+    showPopUpFormProperties : function () {
+        // get form property options
+        var form = $(".form-container")[0];
+        
+        var formOptions = FormBuilder.elementPropertyDefinitions["org.joget.apps.form.model.Form"];
+        var formProperties = form.dom.properties;
+        
+        // show property dialog
+        var options = {
+            contextPath: FormBuilder.contextPath,
+            propertiesDefinition: formOptions,
+            propertyValues: formProperties,
+            showCancelButton:true,
+            cancelCallback: function() {
+                FormBuilder.propertyDialog.hide();
+                $("#form-property-editor").html("");
+            },
+            saveCallback: function(container, properties) {
+                FormBuilder.addToUndo();
+                
+                // hide dialog
+                FormBuilder.propertyDialog.hide();
+
+                // update element properties
+                FormBuilder.updateElementProperties(form, properties);
+                
+                //retrieve existing fields
+                FormBuilder.retrieveExistingFieldIds();
+                
+                // change to design tab
+                $("#builder-step-design").trigger("click");
+            }
+        };
+
+        // show popup dialog
+        if (FormBuilder.propertyDialog == null) {
+            FormBuilder.propertyDialog = new Boxy(
+                '<div id="form-property-editor"></div>',
+                {
+                    title: 'Property Editor',
+                    closeable: true,
+                    draggable: false,
+                    show: false,
+                    fixed: true
+                });
+        }
+        $("#form-property-editor").html("");
+        FormBuilder.propertyDialog.show();
+        $("#form-property-editor").propertyEditor(options);
+        FormBuilder.propertyDialog.center('x');
+        FormBuilder.propertyDialog.center('y');
     },
     
     isEmpty : function() {
@@ -815,5 +1094,387 @@ FormBuilder = {
         }else{
             return false;
         }
+    },
+    
+    getCopiedElement : function() {
+        var time = $.localStorage.getItem("formBuilder.copyTime");
+        //10 mins
+        if (time !== undefined && time !== null && ((new Date()) - (new Date(time))) > 3000000) {
+            $.localStorage.removeItem('formBuilder.copyTime');
+            $.localStorage.removeItem('formBuilder.copy');
+            $.localStorage.removeItem('formBuilder.copyProperty');
+            return null;
+        }
+        var copied = $.localStorage.getItem("formBuilder.copy");
+        if (copied !== undefined && copied !== null) {
+            copied = $(copied).attr("element-property", $.localStorage.getItem("formBuilder.copyProperty"));
+        }
+        return copied;
+    },
+    
+    copy : function(element) {
+        var copy = $(element).clone().wrap('<p/>').parent();
+        $(copy).find(".form-palette-options, .form-clear").remove();
+        $.localStorage.setItem("formBuilder.copy", $(copy).html());
+        var dom = $(element)[0].dom;
+        var elementProperty = $(element).attr("element-property");
+        if (dom && dom.properties) {
+            elementProperty = JSON.encode(dom.properties);
+        }
+        $.localStorage.setItem("formBuilder.copyProperty", elementProperty);
+        $.localStorage.setItem("formBuilder.copyTime", new Date());
+        FormBuilder.updatePasteIcon();
+        FormBuilder.showMessage(get_fbuilder_msg('fbuilder.copied'));
+        setTimeout(function(){ FormBuilder.showMessage(""); }, 2000);
+    },
+    
+    paste : function(element, position) {
+        var copied = FormBuilder.getCopiedElement();
+        if (copied !== undefined && copied !== null) {
+            FormBuilder.addToUndo();
+            var copiedElement = $(copied);
+            
+            if ($(copiedElement).hasClass("form-section")) {
+                $(copiedElement).find(".form-cell").each(function(index, obj) {
+                    $(obj).html("");
+                });
+            } else {
+                $(copiedElement).html("");
+            }
+            
+            if (position === "before") {
+                $(element).before(copiedElement);
+            } else if (position === "after") {
+                $(element).after(copiedElement);
+            } else {
+                $(element).append(copiedElement);
+            }
+            
+            // decorate all elements
+            if ($(copiedElement).hasClass("form-section")) {
+                FormBuilder.updateCopiedId(copiedElement);
+                FormBuilder.decorateSection(copiedElement);
+            
+                $(copiedElement).find(".form-column").each(function(index, obj) {
+                    FormBuilder.updateCopiedId(obj);
+                    FormBuilder.decorateColumn(obj);
+                });
+
+                $(copiedElement).find(".form-cell").each(function(index, obj) {
+                    FormBuilder.updateCopiedId(obj);
+                    FormBuilder.updateElementDOM(obj);
+                    FormBuilder.refreshElementTemplate(obj);
+                    FormBuilder.decorateElement(obj);
+                });
+            } else {
+                FormBuilder.updateCopiedId(copiedElement);
+                FormBuilder.updateElementDOM(copiedElement);
+                FormBuilder.refreshElementTemplate(copiedElement);
+                FormBuilder.decorateElement(copiedElement);
+            }
+            
+            // initialize new sections and columns
+            FormBuilder.initSectionsAndColumns();
+        }
+    },
+    
+    updateCopiedId : function (element) {
+        var propertyJson = $(element).attr("element-property");
+        var property = eval("(" + propertyJson + ")");
+        if (property !== undefined && property !== null) {
+            var id = property.id;
+            var count = 0;
+            var newId = id;
+            while ($("[element-id="+newId+"]").length > 1) {
+                count++;
+                newId = id + "_" + count;
+            }
+            
+            property.id = newId;
+            $(element).attr("element-property", JSON.encode(property));
+        }
+    },
+    
+    updatePasteIcon : function() {
+        $(".form-palette-paste").addClass("disabled");
+        var copied = FormBuilder.getCopiedElement();
+        if (copied !== undefined && copied !== null) {
+            if ($(copied).hasClass("form-section")) {
+                $(".form-palette-paste.section").removeClass("disabled");
+            } else {
+                $(".form-palette-paste.column").removeClass("disabled");
+            }
+        }
+    },
+    
+    //Undo the changes from stack
+    undo : function(){
+        if(FormBuilder.undoStack.length > 0){
+            //if redo stack is full, delete first
+            if(FormBuilder.redoStack.length >= FormBuilder.undoRedoMax){
+                FormBuilder.redoStack.splice(0,1);
+            }
+
+            //save current json data to redo stack
+            FormBuilder.redoStack.push(FormBuilder.generateJSON());
+
+            //undo-ing
+            var loading = $('<div id="loading"><i class="fa fa-spinner fa-spin fa-2x"></i> ' + get_fbuilder_msg("fbuilder.label.undoing") + '</div>');
+            $("body").append(loading);
+            FormBuilder.loadJson(JSON.decode(FormBuilder.undoStack.pop()));
+            
+            //enable redo button if it is disabled previously
+            if(FormBuilder.redoStack.length === 1){
+                $('.action-redo').removeClass('disabled');
+                $('.action-redo').attr('title', get_fbuilder_msg('fbuilder.redo.tip'));
+            }
+
+            //if undo stack is empty, disabled undo button
+            if(FormBuilder.undoStack.length === 0){
+                $('.action-undo').addClass('disabled');
+                $('.action-undo').attr('title', get_fbuilder_msg('fbuilder.undo.disabled.tip'));
+            }
+        }
+    },
+
+    //Redo the changes from stack
+    redo : function(){
+        if(FormBuilder.redoStack.length > 0){
+            //if undo stack is full, delete first
+            if(FormBuilder.undoStack.length >= FormBuilder.undoRedoMax){
+                FormBuilder.undoStack.splice(0,1);
+            }
+
+            //save current json data to undo stack
+            FormBuilder.undoStack.push(FormBuilder.generateJSON());
+
+            //redo-ing
+            var loading = $('<div id="loading"><i class="fa fa-spinner fa-spin fa-2x"></i> ' + get_fbuilder_msg("fbuilder.label.redoing") + '</div>');
+            $("body").append(loading);
+            FormBuilder.loadJson(JSON.decode(FormBuilder.redoStack.pop()));
+
+            //enable undo button if it is disabled previously
+            if(FormBuilder.undoStack.length == 1){
+                $('.action-undo').removeClass('disabled');
+                $('.action-undo').attr('title', get_fbuilder_msg('fbuilder.undo.tip'));
+            }
+
+            //if redo stack is empty, disabled redo button
+            if(FormBuilder.redoStack.length == 0){
+                $('.action-redo').addClass('disabled');
+                $('.action-redo').attr('title', get_fbuilder_msg('fbuilder.redo.disabled.tip'));
+            }
+        }
+    },
+
+    //Add changes info to stack
+    addToUndo : function(json){
+        //if undo stack is full, delete first
+        if(FormBuilder.undoStack.length >= FormBuilder.undoRedoMax){
+            FormBuilder.undoStack.splice(0,1);
+        }
+        
+        if (json === undefined || json === null) {
+            json = FormBuilder.generateJSON();
+        }
+        
+        //save current json data to undo stack
+        FormBuilder.undoStack.push(json);
+
+        //enable undo button if it is disabled previously
+        if(FormBuilder.undoStack.length === 1){
+            $('.action-undo').removeClass('disabled');
+            $('.action-undo').attr('title', get_fbuilder_msg('fbuilder.undo.tip'));
+        }
+    },
+    
+    loadJson : function(json){
+        if (json !== null && json !== undefined && json.properties !== null && json.properties !== undefined) {
+            json.properties.id = FormBuilder.formId;
+        }
+        
+        $(".form-container-div").html("<form></form>");
+        FormBuilder.retrieveElementHTML($(".form-container-div form"), json, null, null, function() {
+           FormBuilder.generateJSON(true); 
+        });
+    },
+    
+    showMessage: function(message) {
+        if (message && message != "") {
+            $("#builder-message").html(message);
+            $("#builder-message").fadeIn();
+        } else {
+            $("#builder-message").fadeOut();
+        }
+    },
+    
+    updateForm: function() {
+        var json = $('#form-json').val();
+        if (FormBuilder.generateJSON() !== json) {
+            FormBuilder.addToUndo();
+        }
+        FormBuilder.loadJson(JSON.decode(json));
+        
+        return false;
+    },
+    
+    saveForm: function (data) {
+        var json = (data) ? data : FormBuilder.generateJSON();
+        var saveUrl = FormBuilder.contextPath + "/web/console/app/" + FormBuilder.appId + "/" + FormBuilder.appVersion + "/form/" + FormBuilder.formId + "/update";
+        $.ajax({
+            type: "POST",
+            data: {"json": json},
+            url: saveUrl,
+            dataType: "text",
+            beforeSend: function (request) {
+                request.setRequestHeader(ConnectionManager.tokenName, ConnectionManager.tokenValue);
+            },
+            success: function (response) {
+                FormBuilder.showMessage(get_fbuilder_msg('fbuilder.saved'));
+                setTimeout(function () {
+                    FormBuilder.originalJson = FormBuilder.generateJSON(true);
+                    $('#form-json-original').val(json);
+                    FormBuilder.showMessage("");
+                }, 2000);
+            },
+            error: function (jqXHR, textStatus, errorThrown) {
+                alert(get_fbuilder_msg('fbuilder.errorSaving') + " (" + textStatus + "): " + errorThrown);
+            }
+        });
+    },
+    
+    showDiff : function (callback, output) {
+        var jsonUrl = FormBuilder.contextPath + '/web/json/console/app/' + FormBuilder.appId + '/' + FormBuilder.appVersion + '/form/' + FormBuilder.formId + '/json';
+        var thisObject = this;
+        var merged;
+        var currentSaved;
+        $.ajax({
+            type: "GET",
+            url: jsonUrl,
+            dataType: 'json',
+            success: function (data) {
+                var current = data;
+                var currentString = JSON.stringify(data);
+                currentSaved = currentString;
+                $('#form-json-current').val(currentString);
+                var original = JSON.decode($('#form-json-original').val());
+                var latest = JSON.decode($('#form-json').val());
+                merged = DiffMerge.merge(original, current, latest, output);
+            },
+            complete: function() {
+                if (callback) {
+                    callback.call(thisObject, currentSaved, merged);
+                }
+            }
+        });
+    },
+            
+    merge: function (callback) {
+        // get current remote definition
+        FormBuilder.showMessage(get_fbuilder_msg('fbuilder.merging'));
+        var thisObject = this;
+        
+        FormBuilder.showDiff(function (currentSaved, merged) {
+            if (currentSaved !== undefined && currentSaved !== "") {
+                $('#form-json-original').val(currentSaved);
+            }
+            if (merged !== undefined && merged !== "") {
+                $('#form-json').val(merged);
+            }
+            FormBuilder.updateForm();
+            FormBuilder.showMessage("");
+            
+            if (callback) {
+                callback.call(thisObject, merged);
+            }
+        });
+    },
+    
+    mergeAndSave: function() {
+        FormBuilder.merge(FormBuilder.saveForm);
+    },
+    
+    retrieveExistingFieldIds : function() {
+        var form = $(".form-container")[0];
+        var tableName = form.dom.properties['tableName'];
+        
+        $.ajax({
+            url: FormBuilder.contextPath + '/web/json/console/app/'+FormBuilder.appId+'/'+FormBuilder.appVersion+'/form/columns/options?tableName='+tableName,
+            dataType: "text",
+            success: function(data) {
+                if(data !== undefined && data !== null){
+                    var options = $.parseJSON(data);
+                    FormBuilder.existingFields = [];
+                    for (var o in options) {
+                        FormBuilder.existingFields.push(options[o]['value']);
+                    }
+                }
+            }
+        });
+    },
+    
+    getFieldIds : function(includeGridColumn) {
+        var ids = [];
+        $(".form-column .form-cell").each(function(){
+            var className = $(this).attr("element-class");
+            var propertyJson = $(this).attr("element-property");
+            var property = eval("(" + propertyJson + ")");
+            
+            if (includeGridColumn && className.toLowerCase().indexOf("grid") !== -1 && property['options'] !== undefined) {
+                var fieldId = property['id'];
+                for (var i in property['options']) {
+                    var c = property['options'][i]['value'];
+                    if (c !== undefined && c !== "" && ids[fieldId + "." + c] === undefined) {
+                        ids.push(fieldId + "." + c);
+                    }
+                }
+            } else if(property['id'] !== undefined && property['id'] !== "" && $.inArray(property['id'], ids) === -1) {
+                ids.push(property['id']);
+            }
+        });
+        return ids;
+    },
+    
+    getAllFieldOptions: function(properties) {
+        //populate list items
+        var tempArray = [{'label':'','value':''}];
+        var ids = FormBuilder.getFieldIds(false);
+        
+        for (var i in FormBuilder.existingFields) {
+            if($.inArray(FormBuilder.existingFields[i], ids) === -1) {
+                ids.push(FormBuilder.existingFields[i]);
+            }
+        }
+        
+        for(var i in ids){
+            var temp = {'label' : ids[i],
+                         'value' : ids[i]};
+            tempArray.push(temp);
+        }
+        return tempArray;
+    },
+    
+    getFieldOptions: function(properties) {
+        //populate list items
+        var tempArray = [{'label':'','value':''}];
+        var ids = FormBuilder.getFieldIds(false);
+        for(var i in ids){
+            var temp = {'label' : ids[i],
+                         'value' : ids[i]};
+            tempArray.push(temp);
+        }
+        return tempArray;
+    },
+    
+    getFieldAndGridColumnOptions: function(properties) {
+        //populate list items
+        var tempArray = [{'label':'','value':''}];
+        var ids = FormBuilder.getFieldIds(true);
+        for(var i in ids){
+            var temp = {'label' : ids[i],
+                         'value' : ids[i]};
+            tempArray.push(temp);
+        }
+        return tempArray;
     }
 }

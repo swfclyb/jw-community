@@ -5,6 +5,7 @@ import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,13 +16,16 @@ import org.displaytag.decorator.CheckboxTableDecorator;
 import org.displaytag.model.TableModel;
 import org.displaytag.properties.MediaTypeEnum;
 import org.displaytag.tags.TableTagParameters;
+import org.joget.apps.app.service.AppUtil;
 import org.joget.apps.datalist.model.DataList;
 import org.joget.apps.datalist.model.DataListAction;
 import org.joget.apps.datalist.model.DataListColumn;
 import org.joget.apps.datalist.model.DataListColumnFormat;
 import org.joget.commons.util.SecurityUtil;
 import org.joget.commons.util.StringUtil;
+import org.joget.commons.util.TimeZoneUtil;
 import org.joget.workflow.util.WorkflowUtil;
+import org.mozilla.javascript.Scriptable;
 
 /**
  * DisplayTag column decorator to modify columns e.g. format, add links, etc.
@@ -37,11 +41,20 @@ public class DataListDecorator extends CheckboxTableDecorator {
     
     private int index = 0;
 
+    public DataListDecorator() {
+    }
+    
+    public DataListDecorator(DataList dataList) {
+        this.dataList = dataList;
+    }
+    
     @Override
     public void init(PageContext pageContext, Object decorated, TableModel tableModel) {
         super.init(pageContext, decorated, tableModel);
 
-        this.dataList = (DataList) pageContext.findAttribute("dataList");
+        if (this.dataList == null) {
+            this.dataList = (DataList) pageContext.findAttribute("dataList");
+        }
 
         // set values to fix DisplayTag bug later
         if (fieldName != null) {
@@ -82,7 +95,7 @@ public class DataListDecorator extends CheckboxTableDecorator {
         }
 
         StringBuffer buffer = new StringBuffer();
-        buffer.append("<input type=\"checkbox\" name=\"");
+        buffer.append("<label><input type=\"checkbox\" name=\"");
         buffer.append(fieldName);
         buffer.append("\" value=\"");
         buffer.append(StringEscapeUtils.escapeHtml(evaluatedId));
@@ -91,7 +104,7 @@ public class DataListDecorator extends CheckboxTableDecorator {
             checkedIds.remove(evaluatedId);
             buffer.append(" checked=\"checked\"");
         }
-        buffer.append("/>");
+        buffer.append("/><i></i></label>");
 
         return buffer.toString();
     }
@@ -106,7 +119,7 @@ public class DataListDecorator extends CheckboxTableDecorator {
         }
 
         StringBuffer buffer = new StringBuffer();
-        buffer.append("<input type=\"radio\" name=\"");
+        buffer.append("<label><input type=\"radio\" name=\"");
         buffer.append(fieldName);
         buffer.append("\" value=\"");
         buffer.append(StringEscapeUtils.escapeHtml(evaluatedId));
@@ -115,7 +128,7 @@ public class DataListDecorator extends CheckboxTableDecorator {
             checkedIds.remove(evaluatedId);
             buffer.append(" checked=\"checked\"");
         }
-        buffer.append("/>");
+        buffer.append("/><i></i></label>");
 
         return buffer.toString();
     }
@@ -134,16 +147,13 @@ public class DataListDecorator extends CheckboxTableDecorator {
         String text = formatColumn(column, row, columnValue);
 
         // strip tags if media type is not HTML
-        String export =  dataList.getDataListParamString(TableTagParameters.PARAMETER_EXPORTING);
-        String exportType = dataList.getDataListParamString(TableTagParameters.PARAMETER_EXPORTTYPE);
-        if (!("1".equals(export) && (exportType.equals("1") || exportType.equals("2") || exportType.equals("3") || exportType.equals("5")))) {
-            if (isRenderHtml(column) && text != null && !MediaTypeEnum.HTML.equals(tableModel.getMedia())) {
-                text = StringUtil.stripAllHtmlTag(text);
-            }
+        if (!MediaTypeEnum.HTML.equals(tableModel.getMedia())) {
+            text = StringUtil.stripAllHtmlTag(text);
+            text = StringEscapeUtils.unescapeHtml(text);
         }
 
         // handle links
-        DataListAction action = column.getAction();
+        DataListAction action = dataList.getColumnAction(column);
         if (text != null && action != null && action.getHref() != null && action.getHref().trim().length() > 0 && MediaTypeEnum.HTML.equals(tableModel.getMedia())) {
             String href = action.getHref();
             String target = action.getTarget();
@@ -195,7 +205,7 @@ public class DataListDecorator extends CheckboxTableDecorator {
         } else {
             index++;
         }
-        if (!column.getName().equals(columnName) && skipHidden && column.isHidden()) {
+        if (!column.getName().equals(columnName) && ((skipHidden && column.isHidden()) || (!column.isHidden() && "true".equals(column.getPropertyString("exclude_export"))))) {
             column = findColumn(columnName);
         }
         
@@ -275,7 +285,7 @@ public class DataListDecorator extends CheckboxTableDecorator {
         return link;
     }
 
-    protected String formatColumn(DataListColumn column, Object row, Object value) {
+    public String formatColumn(DataListColumn column, Object row, Object value) {
         Object result = value;
         
         // decrypt protected data 
@@ -317,6 +327,9 @@ public class DataListDecorator extends CheckboxTableDecorator {
                 if (value == null) {
                     value = super.evaluate(propertyName.toLowerCase());
                 }
+                if (value != null && value instanceof Date) {
+                    value = TimeZoneUtil.convertToTimeZone((Date) value, null, AppUtil.getAppDateFormat());
+                }
                 return value;
             } catch (Exception e) {}
         }
@@ -328,6 +341,8 @@ public class DataListDecorator extends CheckboxTableDecorator {
         
         Object[] rules = (Object[]) rowAction.getProperty("rules");
         if (rules != null && rules.length > 0) {
+            String visibleRules = "";
+            
             for (Object o : rules) {
                 Map ruleMap = (HashMap) o;
                 
@@ -338,61 +353,89 @@ public class DataListDecorator extends CheckboxTableDecorator {
                 Object tempValue = evaluate(fieldId);
                 String value = (tempValue != null)?tempValue.toString():"";
                 
-                boolean result = false;
-                if (value != null && !value.isEmpty()) {
-                    if ("=".equals(operator) && compareValue.equals(value)) {
-                        result = true;
-                    } else if ("<>".equals(operator) && !compareValue.equals(value)) {
-                        result = true;
-                    } else if (">".equals(operator) || "<".equals(operator) || ">=".equals(operator) || "<=".equals(operator)) {
-                        try {
-                            double valueNum = Double.parseDouble(value);
-                            double compareValueNum = Double.parseDouble(compareValue);
-                            
-                            if (">".equals(operator) && valueNum > compareValueNum) {
+                if (!visibleRules.isEmpty() && !visibleRules.endsWith("(") && !")".equals(fieldId)) {
+                    if ("OR".equals(join)) {
+                        visibleRules += " || ";
+                    } else {
+                        visibleRules += " && ";
+                    }
+                }
+                if (!")".equals(fieldId)) {
+                    visibleRules += " ";
+                }
+                if ("(".equals(fieldId) || ")".equals(fieldId) ) {
+                    visibleRules += fieldId;
+                } else {
+                    boolean result = false;
+                    if (value != null) {
+                        if ("=".equals(operator) && compareValue.equals(value)) {
+                            result = true;
+                        } else if ("<>".equals(operator) && !compareValue.equals(value)) {
+                            result = true;
+                        } else if (">".equals(operator) || "<".equals(operator) || ">=".equals(operator) || "<=".equals(operator)) {
+                            try {
+                                double valueNum = Double.parseDouble(value);
+                                double compareValueNum = Double.parseDouble(compareValue);
+
+                                if (">".equals(operator) && valueNum > compareValueNum) {
+                                    result = true;
+                                } else if ("<".equals(operator) && valueNum < compareValueNum) {
+                                    result = true;
+                                } else if (">=".equals(operator) && valueNum >= compareValueNum) {
+                                    result = true;
+                                } else if ("<=".equals(operator) && valueNum <= compareValueNum) {
+                                    result = true;
+                                }
+                            } catch (NumberFormatException e) {}
+                        } else if ("LIKE".equals(operator) && value.toLowerCase().contains(compareValue.toLowerCase())) {
+                            result = true;
+                        } else if ("NOT LIKE".equals(operator) && !value.toLowerCase().contains(compareValue.toLowerCase())) {
+                            result = true;
+                        } else if ("IN".equals(operator) || "NOT IN".equals(operator)) {
+                            String[] compareValues = compareValue.split(";");
+                            List<String> compareValuesList = new ArrayList<String>(Arrays.asList(compareValues));
+                            if ("IN".equals(operator) && compareValuesList.contains(value)) {
                                 result = true;
-                            } else if ("<".equals(operator) && valueNum < compareValueNum) {
-                                result = true;
-                            } else if (">=".equals(operator) && valueNum >= compareValueNum) {
-                                result = true;
-                            } else if ("<=".equals(operator) && valueNum <= compareValueNum) {
+                            } else if ("NOT IN".equals(operator) && !compareValuesList.contains(value)) {
                                 result = true;
                             }
-                        } catch (NumberFormatException e) {}
-                    } else if ("LIKE".equals(operator) && value.toLowerCase().contains(compareValue.toLowerCase())) {
-                        result = true;
-                    } else if ("NOT LIKE".equals(operator) && !value.toLowerCase().contains(compareValue.toLowerCase())) {
-                        result = true;
-                    } else if ("IN".equals(operator) || "NOT IN".equals(operator)) {
-                        String[] compareValues = compareValue.split(";");
-                        List<String> compareValuesList = new ArrayList<String>(Arrays.asList(compareValues));
-                        if ("IN".equals(operator) && compareValuesList.contains(value)) {
+                        } else if ("IS TRUE".equals(operator) || "IS FALSE".equals(operator)) {
+                            try {
+                                boolean valueBoolean = Boolean.parseBoolean(value);
+
+                                if ("IS TRUE".equals(operator) && valueBoolean) {
+                                    result = true;
+                                } else if ("IS FALSE".equals(operator) && !valueBoolean) {
+                                    result = true;
+                                }
+                            } catch(Exception e) {}
+                        } else if ("IS NOT EMPTY".equals(operator)) {
                             result = true;
-                        } else if ("NOT IN".equals(operator) && !compareValuesList.contains(value)) {
-                            result = true;
+                        } else if ("REGEX".equals(operator) || "NOT REGEX".equals(operator)) {
+                            if (value.matches(StringEscapeUtils.unescapeJavaScript(compareValue))) {
+                                if ("REGEX".equals(operator)) {
+                                    result = true;
+                                }
+                            } else {
+                                if ("NOT REGEX".equals(operator)) {
+                                    result = true;
+                                }
+                            }
                         }
-                    } else if ("IS TRUE".equals(operator) || "IS FALSE".equals(operator)) {
-                        try {
-                            boolean valueBoolean = Boolean.parseBoolean(value);
-                            
-                            if ("IS TRUE".equals(operator) && valueBoolean) {
-                                result = true;
-                            } else if ("IS FALSE".equals(operator) && !valueBoolean) {
-                                result = true;
-                            }
-                        } catch(Exception e) {}
-                    } else if ("IS NOT EMPTY".equals(operator)) {
+                    } else if ("IS EMPTY".equals(operator)) {
                         result = true;
                     }
-                } else if ("IS EMPTY".equals(operator)) {
-                    result = true;
+                    
+                    visibleRules += result;
                 }
-                
-                if ("AND".equals(join)) {
-                    visible = visible && result;
-                } else if ("OR".equals(join)){
-                    visible = visible || result; 
-                }
+            }
+            
+            org.mozilla.javascript.Context cx = org.mozilla.javascript.Context.enter();
+            Scriptable scope = cx.initStandardObjects(null);
+            try {
+                visible = (Boolean) cx.evaluateString(scope, visibleRules, "", 1, null);
+            } finally {
+                org.mozilla.javascript.Context.exit();
             }
         }
         

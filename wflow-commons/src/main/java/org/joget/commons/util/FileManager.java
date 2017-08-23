@@ -9,18 +9,30 @@ import java.net.URLDecoder;
 import javax.imageio.ImageIO;
 import org.springframework.web.multipart.MultipartFile;
 
+/**
+ * Utility methods used by the system to manager temporary files
+ * 
+ */
 public class FileManager {
     public final static Integer THUMBNAIL_SIZE = 60; 
     public final static String THUMBNAIL_EXT = ".thumb.jpg"; 
     
+    /**
+     * Gets directory path to temporary files folder
+     * @return 
+     */
     public static String getBaseDirectory() {
         return SetupManager.getBaseDirectory() + File.separator + "app_tempfile" + File.separator;
     }
     
+    /**
+     * Stores files post to the HTTP request to temporary files folder
+     * @param file
+     * @return the relative path of the stored temporary file, NULL if failure.
+     */
     public static String storeFile(MultipartFile file) {
         if (file != null && !file.getOriginalFilename().isEmpty()) {
             String id = UuidGenerator.getInstance().getUuid();
-            FileOutputStream out = null;
             String path =  id + File.separator;
             String filename = path;
             try {
@@ -31,24 +43,21 @@ public class FileManager {
                     new File(getBaseDirectory(), path).mkdirs();
 
                     // write file
-                    out = new FileOutputStream(uploadFile);
-                    out.write(file.getBytes());
+                    file.transferTo(uploadFile);
                 }
             } catch (Exception ex) {
                 LogUtil.error(FileManager.class.getName(), ex, "");
-            } finally {
-                if (out != null) {
-                    try {
-                        out.close();
-                    } catch (Exception ex) {
-                    }
-                }
-                return filename;
             }
+            return filename;
         }
         return null;
     }
     
+    /**
+     * Gets the temporary file from temporary files folder by relative path
+     * @param path
+     * @return 
+     */
     public static File getFileByPath(String path) {
         if (path != null) {
             try {
@@ -61,6 +70,10 @@ public class FileManager {
         return null;
     }
     
+    /**
+     * Deletes the temporary file from temporary files folder by relative path
+     * @param path 
+     */
     public static void deleteFileByPath(String path) {
         File file = getFileByPath(path);
         File directory = file.getParentFile();
@@ -74,6 +87,10 @@ public class FileManager {
         }
     }
     
+    /**
+     * Deletes a file
+     * @param file 
+     */
     public static void deleteFile(File file) {
         if (!file.exists()) {
             return;
@@ -87,6 +104,12 @@ public class FileManager {
         file.delete();
     }
     
+    /**
+     * Generates a thumbnail of a image file in temporary files folder by relative path
+     * @param path
+     * @param thumbWidth
+     * @param thumbHeight 
+     */
     public static void createThumbnail(String path, Integer thumbWidth, Integer thumbHeight) {
         if (thumbWidth == null) {
             thumbWidth = THUMBNAIL_SIZE;

@@ -1,12 +1,17 @@
 package org.joget.apps.userview.service;
 
-import java.net.URLEncoder;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.StringTokenizer;
 import javax.servlet.http.HttpServletRequest;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang.StringEscapeUtils;
 import org.joget.apps.app.dao.UserviewDefinitionDao;
 import org.joget.apps.app.model.AppDefinition;
 import org.joget.apps.app.model.MobileElement;
@@ -14,13 +19,18 @@ import org.joget.apps.app.model.UserviewDefinition;
 import org.joget.apps.app.service.AppService;
 import org.joget.apps.app.service.AppUtil;
 import org.joget.apps.app.service.MobileUtil;
+import org.joget.apps.form.service.FormUtil;
+import org.joget.apps.userview.model.CachedUserviewMenu;
 import org.joget.apps.userview.model.Userview;
 import org.joget.apps.userview.model.UserviewCategory;
 import org.joget.apps.userview.model.UserviewMenu;
 import org.joget.apps.userview.model.UserviewPermission;
 import org.joget.apps.userview.model.UserviewSetting;
 import org.joget.apps.userview.model.UserviewTheme;
+import org.joget.commons.spring.model.Setting;
 import org.joget.commons.util.LogUtil;
+import org.joget.commons.util.ResourceBundleUtil;
+import org.joget.commons.util.SetupManager;
 import org.joget.commons.util.StringUtil;
 import org.joget.directory.model.User;
 import org.joget.directory.model.service.ExtDirectoryManager;
@@ -33,7 +43,14 @@ import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
 
+/**
+ * Service methods used to parse userview json definition to create Userview
+ * 
+ */
 @Service("userviewService")
 public class UserviewService {
 
@@ -46,9 +63,11 @@ public class UserviewService {
     @Autowired
     UserviewDefinitionDao userviewDefinitionDao;
     @Autowired
+    private SetupManager setupManager;
+    @Autowired
     @Qualifier("main")
     ExtDirectoryManager directoryManager;
-    
+
     /**
      * Get userview setting object
      * @param appDef
@@ -61,14 +80,12 @@ public class UserviewService {
         //process json with hash variable
         json = AppUtil.processHashVariable(json, null, StringUtil.TYPE_JSON, null, appDef);
 
-        User currentUser = directoryManager.getUserByUsername(workflowUserManager.getCurrentUsername());
+        User currentUser = workflowUserManager.getCurrentUser();
         
         Map<String, Object> requestParameters = new HashMap<String, Object>();
         requestParameters.put("appId", appDef.getAppId());
         requestParameters.put("appVersion", appDef.getVersion().toString());
         
-        String appId = appDef.getId();
-        String appVersion = appDef.getVersion().toString();
         Userview userview = new Userview();
         
         try {
@@ -93,17 +110,19 @@ public class UserviewService {
                 LogUtil.debug(getClass().getName(), "set theme error.");
             }
             try {
-                JSONObject permissionObj = settingObj.getJSONObject("properties").getJSONObject("permission");
-                UserviewPermission permission = null;
-                String permissionClassName = permissionObj.getString("className");
-                if (permissionClassName != null && !permissionClassName.isEmpty()) {
-                    permission = (UserviewPermission) pluginManager.getPlugin(permissionClassName);
-                }
-                if (permission != null) {
-                    permission.setProperties(PropertyUtil.getPropertiesValueFromJson(permissionObj.getJSONObject("properties").toString()));
-                    permission.setRequestParameters(requestParameters);
-                    permission.setCurrentUser(currentUser);
-                    setting.setPermission(permission);
+                if (!"true".equals(setting.getPropertyString("tempDisablePermissionChecking"))) {
+                    JSONObject permissionObj = settingObj.getJSONObject("properties").getJSONObject("permission");
+                    UserviewPermission permission = null;
+                    String permissionClassName = permissionObj.getString("className");
+                    if (permissionClassName != null && !permissionClassName.isEmpty()) {
+                        permission = (UserviewPermission) pluginManager.getPlugin(permissionClassName);
+                    }
+                    if (permission != null) {
+                        permission.setProperties(PropertyUtil.getPropertiesValueFromJson(permissionObj.getJSONObject("properties").toString()));
+                        permission.setRequestParameters(requestParameters);
+                        permission.setCurrentUser(currentUser);
+                        setting.setPermission(permission);
+                    }
                 }
             } catch (Exception e) {
                 LogUtil.debug(getClass().getName(), "set permission error.");
@@ -115,7 +134,7 @@ public class UserviewService {
 
         return setting;
     }
-
+    
     /**
      * Create userview fron json
      * @return
@@ -133,11 +152,15 @@ public class UserviewService {
         if (key != null && key.trim().length() == 0) {
             key = null;
         }
+        if (key != null) {
+            key = StringEscapeUtils.escapeHtml(key);
+        }
 
         //process json with hash variable
-        json = AppUtil.processHashVariable(json, null, StringUtil.TYPE_JSON, null, appDef);
+        json = AppUtil.processHashVariable(json, null, StringUtil.TYPE_JSON, null);
+        json = AppUtil.replaceAppMessages(json, StringUtil.TYPE_JSON);
 
-        User currentUser = directoryManager.getUserByUsername(workflowUserManager.getCurrentUsername());
+        User currentUser = workflowUserManager.getCurrentUser();
 
         if (requestParameters == null) {
             requestParameters = new HashMap<String, Object>();
@@ -152,33 +175,41 @@ public class UserviewService {
         String appId = appDef.getId();
         String appVersion = appDef.getVersion().toString();
         Userview userview = new Userview();
+        userview.setParams(requestParameters);
         
         boolean userviewPermission = true;
         
         //if screenshot, set user to null (anonymous)
-        String currentThreadUser = null;
+        User currentThreadUser = currentUser;
         boolean isScreenCapture = workflowUserManager.isCurrentUserInRole(WorkflowUserManager.ROLE_ADMIN) && "true".equalsIgnoreCase((String) requestParameters.get("_isScreenCapture"));
         if (isScreenCapture) {
             currentUser = null;
-            currentThreadUser = workflowUserManager.getCurrentThreadUser();
             workflowUserManager.setCurrentThreadUser(WorkflowUserManager.ROLE_ANONYMOUS);
         }
 
         try {
             //set userview properties
             JSONObject userviewObj = new JSONObject(json);
-            userview.setProperties(PropertyUtil.getPropertiesValueFromJson(userviewObj.getJSONObject("properties").toString()));
+            userview.setProperties(PropertyUtil.getProperties(userviewObj.getJSONObject("properties")));
 
             //set Setting
             JSONObject settingObj = userviewObj.getJSONObject("setting");
             UserviewSetting setting = new UserviewSetting();
-            setting.setProperties(PropertyUtil.getPropertiesValueFromJson(settingObj.getJSONObject("properties").toString()));
+            setting.setProperties(PropertyUtil.getProperties(settingObj.getJSONObject("properties")));
 
             //set theme & permission
             try {
                 JSONObject themeObj = settingObj.getJSONObject("properties").getJSONObject("theme");
+                JSONObject themeProperties = themeObj.getJSONObject("properties");
                 UserviewTheme theme = (UserviewTheme) pluginManager.getPlugin(themeObj.getString("className"));
-                theme.setProperties(PropertyUtil.getPropertiesValueFromJson(themeObj.getJSONObject("properties").toString()));
+                if (theme == null) {
+                    String defaultTheme = ResourceBundleUtil.getMessage("generator.userview.theme");
+                    theme = (UserviewTheme) pluginManager.getPlugin(defaultTheme);
+                    String defaultThemePropertiesKey = "generator.userview.theme." + defaultTheme + ".properties";
+                    String defaultThemeProperties = "{" + ResourceBundleUtil.getMessage(defaultThemePropertiesKey) + "}";
+                    themeProperties = new JSONObject(defaultThemeProperties);
+                }
+                theme.setProperties(PropertyUtil.getProperties(themeProperties));
                 theme.setRequestParameters(requestParameters);
                 theme.setUserview(userview);
                 setting.setTheme(theme);
@@ -186,19 +217,21 @@ public class UserviewService {
                 LogUtil.debug(getClass().getName(), "set theme error.");
             }
             try {
-                JSONObject permissionObj = settingObj.getJSONObject("properties").getJSONObject("permission");
-                UserviewPermission permission = null;
-                String permissionClassName = permissionObj.getString("className");
-                if (permissionClassName != null && !permissionClassName.isEmpty()) {
-                    permission = (UserviewPermission) pluginManager.getPlugin(permissionClassName);
-                }
-                if (permission != null) {
-                    permission.setProperties(PropertyUtil.getPropertiesValueFromJson(permissionObj.getJSONObject("properties").toString()));
-                    permission.setRequestParameters(requestParameters);
-                    permission.setCurrentUser(currentUser);
-                    setting.setPermission(permission);
-                    
-                    userviewPermission = permission.isAuthorize();
+                if (!"true".equals(setting.getPropertyString("tempDisablePermissionChecking"))) {
+                    JSONObject permissionObj = settingObj.getJSONObject("properties").getJSONObject("permission");
+                    UserviewPermission permission = null;
+                    String permissionClassName = permissionObj.getString("className");
+                    if (permissionClassName != null && !permissionClassName.isEmpty()) {
+                        permission = (UserviewPermission) pluginManager.getPlugin(permissionClassName);
+                    }
+                    if (permission != null) {
+                        permission.setProperties(PropertyUtil.getProperties(permissionObj.getJSONObject("properties")));
+                        permission.setRequestParameters(requestParameters);
+                        permission.setCurrentUser(currentUser);
+                        setting.setPermission(permission);
+
+                        userviewPermission = permission.isAuthorize();
+                    }
                 }
             } catch (Exception e) {
                 LogUtil.debug(getClass().getName(), "set permission error.");
@@ -214,10 +247,10 @@ public class UserviewService {
                     JSONObject categoryObj = (JSONObject) categoriesArray.get(i);
 
                     UserviewCategory category = new UserviewCategory();
-                    category.setProperties(PropertyUtil.getPropertiesValueFromJson(categoryObj.getJSONObject("properties").toString()));
-
+                    category.setProperties(PropertyUtil.getProperties(categoryObj.getJSONObject("properties")));
+                    
                     boolean hasPermis = false;
-                    if (preview) {
+                    if (preview || "true".equals(setting.getPropertyString("tempDisablePermissionChecking"))) {
                         hasPermis = true;
                     } else {
                         //check for permission
@@ -234,8 +267,8 @@ public class UserviewService {
                             LogUtil.debug(getClass().getName(), "set category permission error.");
                         }
 
-                        if (permission != null) {
-                            permission.setProperties(PropertyUtil.getPropertiesValueFromJson(permissionObj.getJSONObject("properties").toString()));
+                        if (permission != null && permissionObj != null) {
+                            permission.setProperties(PropertyUtil.getProperties(permissionObj.getJSONObject("properties")));
                             permission.setRequestParameters(requestParameters);
                             permission.setCurrentUser(currentUser);
 
@@ -262,7 +295,7 @@ public class UserviewService {
                                     continue;
                                 }
 
-                                menu.setProperties(PropertyUtil.getPropertiesValueFromJson(menuObj.getJSONObject("properties").toString()));
+                                menu.setProperties(PropertyUtil.getProperties(menuObj.getJSONObject("properties")));
                                 menu.setRequestParameters(requestParameters);
                                 menu.setUserview(userview);
                                 String mId = getMenuId(menu);
@@ -278,7 +311,7 @@ public class UserviewService {
                                         prefix = "/web/embed/userview/";
                                     }
 
-                                    menu.setUrl(contextPath + prefix + appId + "/" + userview.getPropertyString("id") + "/" + ((key != null) ? URLEncoder.encode(key, "UTF-8") : "") + "/" + mId);
+                                    menu.setUrl(contextPath + prefix + appId + "/" + userview.getPropertyString("id") + "/" + ((key != null) ? StringEscapeUtils.escapeHtml(key) : Userview.USERVIEW_KEY_EMPTY_VALUE) + "/" + mId);
                                 }
 
                                 //set Current, if current menu id is empty, search the 1st valid menu
@@ -292,7 +325,8 @@ public class UserviewService {
                                 if (userview.getPropertyString("homeMenuId") == null || userview.getPropertyString("homeMenuId").isEmpty() && menu.isHomePageSupported()) {
                                     userview.setProperty("homeMenuId", mId);
                                 }
-
+                                
+                                menu = new CachedUserviewMenu(menu);
                                 menus.add(menu);
                             } catch (Exception e) {
                                 LogUtil.debug(getClass().getName(), "Userview Menu class file not found");
@@ -317,6 +351,11 @@ public class UserviewService {
         return userview;
     }
 
+    /**
+     * Gets the id of an userview menu
+     * @param menu
+     * @return 
+     */
     public String getMenuId(UserviewMenu menu) {
         String menuId = menu.getPropertyString("id");
         if (menu.getPropertyString("customId") != null && menu.getPropertyString("customId").trim().length() > 0) {
@@ -325,72 +364,132 @@ public class UserviewService {
         return menuId;
     }
 
+    /**
+     * Gets the name of a userview from json definition
+     * @param json
+     * @return 
+     */
     public String getUserviewName(String json) {
         try {
             JSONObject userviewObj = new JSONObject(json);
-            return PropertyUtil.getPropertiesValueFromJson(userviewObj.getJSONObject("properties").toString()).get("name").toString();
+            return PropertyUtil.getProperties(userviewObj.getJSONObject("properties")).get("name").toString();
         } catch (Exception ex) {
             LogUtil.error(getClass().getName(), ex, "Get Userview Name Error!!");
         }
         return "";
     }
     
+    /**
+     * Gets the userview theme used by an userview
+     * @param appId
+     * @param userviewId
+     * @return 
+     */
     public UserviewTheme getUserviewTheme(String appId, String userviewId) {
         UserviewTheme theme = null;
         
-        Long appVersion = appService.getPublishedVersion(appId);
+        AppDefinition appDef = appService.getPublishedAppDefinition(appId);
         HttpServletRequest request = WorkflowUtil.getHttpServletRequest();
-        if (appVersion != null && request != null) {
-            AppDefinition appDef = appService.getAppDefinition(appId, appVersion.toString());
-            if (appDef != null) {
-                UserviewDefinition userviewDef = userviewDefinitionDao.loadById(userviewId, appDef);
-                if (userviewDef != null) {
-                    String json = userviewDef.getJson();
-                    //process json with hash variable
-                    json = AppUtil.processHashVariable(json, null, StringUtil.TYPE_JSON, null);
-                    
-                    Map requestParameters = convertRequestParamMap(request.getParameterMap());
-                    requestParameters.put("contextPath", request.getContextPath());
-                    requestParameters.put("appId", appDef.getAppId());
-                    requestParameters.put("appVersion", appDef.getVersion().toString());
-                    
-                    try {
-                        Userview userview = new Userview();
-                        
-                        //set userview properties
-                        JSONObject userviewObj = new JSONObject(json);
-                        userview.setProperties(PropertyUtil.getPropertiesValueFromJson(userviewObj.getJSONObject("properties").toString()));
-                        
-                        JSONObject settingObj = userviewObj.getJSONObject("setting");
-                        JSONObject themeObj = settingObj.getJSONObject("properties").getJSONObject("theme");
-                        
-                        theme = (UserviewTheme) pluginManager.getPlugin(themeObj.getString("className"));
-                        theme.setProperties(PropertyUtil.getPropertiesValueFromJson(themeObj.getJSONObject("properties").toString()));
+        if (appDef != null && request != null) {
+            UserviewDefinition userviewDef = userviewDefinitionDao.loadById(userviewId, appDef);
+            if (userviewDef != null) {
+                String json = userviewDef.getJson();
+                //process json with hash variable
+                json = AppUtil.processHashVariable(json, null, StringUtil.TYPE_JSON, null);
+
+                Map requestParameters = convertRequestParamMap(request.getParameterMap());
+                requestParameters.put("contextPath", request.getContextPath());
+                requestParameters.put("appId", appDef.getAppId());
+                requestParameters.put("appVersion", appDef.getVersion().toString());
+
+                try {
+                    Userview userview = new Userview();
+
+                    //set userview properties
+                    JSONObject userviewObj = new JSONObject(json);
+                    userview.setProperties(PropertyUtil.getProperties(userviewObj.getJSONObject("properties")));
+
+                    JSONObject settingObj = userviewObj.getJSONObject("setting");
+                    JSONObject themeObj = settingObj.getJSONObject("properties").getJSONObject("theme");
+
+                    theme = (UserviewTheme) pluginManager.getPlugin(themeObj.getString("className"));
+                    if (theme != null) {
+                        theme.setProperties(PropertyUtil.getProperties(themeObj.getJSONObject("properties")));
                         theme.setRequestParameters(requestParameters);
                         theme.setUserview(userview);
-                        
-                    } catch (Exception e) {
-                        LogUtil.debug(getClass().getName(), "get userview theme error.");
                     }
+
+                } catch (Exception e) {
+                    LogUtil.debug(getClass().getName(), "get userview theme error.");
                 }
             }
         }
         return theme;
     }
 
+    /**
+     * Gets userview description from json definition
+     * @param json
+     * @return 
+     */
     public String getUserviewDescription(String json) {
         try {
             JSONObject userviewObj = new JSONObject(json);
-            return PropertyUtil.getPropertiesValueFromJson(userviewObj.getJSONObject("properties").toString()).get("description").toString();
+            JSONObject settingObj = userviewObj.getJSONObject("setting");
+            Object description = PropertyUtil.getProperties(settingObj.getJSONObject("properties")).get("userviewDescription");
+            return (description != null) ? description.toString() : "";
         } catch (Exception ex) {
             LogUtil.error(getClass().getName(), ex, "Get Userview Description Error!!");
         }
         return "";
     }
 
+    /**
+     * Gets the userview theme used by an userview
+     * @param appId
+     * @param version
+     * @param userviewId
+     * @return 
+     */
+    public Set<String> getAllMenuIds(String appId, String version, String userviewId) {
+        Set<String> ids = new HashSet<String>();
+        
+        AppDefinition appDef = appService.getAppDefinition(appId, version);
+        UserviewDefinition userviewDef = userviewDefinitionDao.loadById(userviewId, appDef);
+        if (userviewDef != null) {
+            String json = userviewDef.getJson();
+
+            try {
+                //set userview properties
+                JSONObject userviewObj = new JSONObject(json);
+                JSONArray categoriesArray = userviewObj.getJSONArray("categories");
+                for (int i = 0; i < categoriesArray.length(); i++) {
+                    JSONObject categoryObj = (JSONObject) categoriesArray.get(i);
+                    JSONArray menusArray = categoryObj.getJSONArray("menus");
+                    for (int j = 0; j < menusArray.length(); j++) {
+                        JSONObject menuObj = (JSONObject) menusArray.get(j);
+                        JSONObject props = menuObj.getJSONObject("properties");
+                        String id = props.getString("id");
+                        String customId = (props.has("customId"))?props.getString("customId"):null;
+                        if (customId != null && !customId.isEmpty()) {
+                            ids.add(customId);
+                        } else {
+                            ids.add(id);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                LogUtil.debug(getClass().getName(), "get userview menu ids error.");
+            }
+        }
+        
+        return ids;
+    }
+    
     private Map convertRequestParamMap(Map params) {
         Map result = new HashMap();
         for (String key : (Set<String>) params.keySet()) {
+            key = StringEscapeUtils.escapeHtml(key);
             String[] paramValue = (String[]) params.get(key);
             if (paramValue.length == 1) {
                 result.put(key, paramValue[0]);
@@ -400,4 +499,79 @@ public class UserviewService {
         }
         return result;
     }
+    
+    public UserviewDefinition getDefaultUserview() {
+        // check for app center userview setting
+        String defaultUserviewProperty = "defaultUserview";
+        UserviewDefinition defaultUserview = null;
+        Setting defaultUserviewSetting = setupManager.getSettingByProperty(defaultUserviewProperty);
+        if (defaultUserviewSetting != null) {
+            // check app center userview is published
+            String defaultUserviewValue = defaultUserviewSetting.getValue();
+            StringTokenizer st = new StringTokenizer(defaultUserviewValue, "/");
+            String appId = (st.hasMoreTokens()) ? st.nextToken() : null;
+            String userviewId = (st.hasMoreTokens()) ? st.nextToken() : null;
+            if (appId != null && userviewId != null) {
+                AppDefinition appDef = appService.getPublishedAppDefinition(appId);
+                if (appDef != null) {
+                    defaultUserview = userviewDefinitionDao.loadById(userviewId, appDef);
+                }
+            }            
+        } else {
+            // import default app center app
+            String path = "/setup/apps/APP_appcenter-1.zip";
+            LogUtil.info(getClass().getName(), "Import default app center " + path);
+            InputStream in = null;
+            try {
+                in = getClass().getResourceAsStream(path);
+                byte[] fileContent = IOUtils.toByteArray(in);
+                final AppDefinition appDef = appService.importApp(fileContent);
+                if (appDef != null) {
+                    TransactionTemplate transactionTemplate = (TransactionTemplate) AppUtil.getApplicationContext().getBean("transactionTemplate");
+                    transactionTemplate.execute(new TransactionCallback<Object>() {
+                        public Object doInTransaction(TransactionStatus ts) {
+                            appService.publishApp(appDef.getId(), null);
+                            return null;
+                        }
+                    });
+                    // get app center userview
+                    Collection<UserviewDefinition> userviewList = appDef.getUserviewDefinitionList();
+                    if (!userviewList.isEmpty()) {
+                        String userviewId = userviewList.iterator().next().getId();
+                        defaultUserview = userviewDefinitionDao.loadById(userviewId, appDef);
+                        
+                        // save setting
+                        String value = defaultUserview.getAppId() + "/" + defaultUserview.getId();
+                        Setting newSetting = new Setting();
+                        newSetting.setProperty(defaultUserviewProperty);
+                        newSetting.setValue(value);
+                        setupManager.saveSetting(newSetting);                        
+                    }
+                }
+            } catch (Exception ex) {
+                LogUtil.error(getClass().getName(), ex, "Failed to import default app center " + path);
+            } finally {
+                try {
+                    if (in != null) {
+                        in.close();
+                    }
+                } catch (IOException e) {
+                }
+            }
+        }
+        return defaultUserview;
+    }
+
+    public boolean isDefaultUserview(String appId, String userviewId) {
+        boolean result = false;
+        String userviewPath = appId + "/" + userviewId;
+        Setting defaultUserviewSetting = setupManager.getSettingByProperty("defaultUserview");
+        if (defaultUserviewSetting != null) {
+            // check app center userview is published
+            String defaultUserviewValue = defaultUserviewSetting.getValue();
+            result = userviewPath.equals(defaultUserviewValue);
+        }
+        return result;
+    }
+    
 }

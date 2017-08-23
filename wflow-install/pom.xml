@@ -4,7 +4,7 @@
     <groupId>org.joget</groupId>
     <artifactId>wflow-install</artifactId>
     <packaging>pom</packaging>
-    <version>4.0-SNAPSHOT</version>
+    <version>6.0-SNAPSHOT</version>
     <name>wflow-install</name>
     <url>http://www.joget.org</url>
     <properties>
@@ -13,10 +13,11 @@
         <nsis.makensis.bin>makensis</nsis.makensis.bin>
     </properties>
     <scm>
-        <connection>scm:svn:http://dev.joget.org/svn/jw-community/trunk/wflow-install/</connection>
-        <developerConnection>scm:svn:http://dev.joget.org/svn/jw-community/trunk/wflow-install/</developerConnection>
-        <url>http://dev.joget.org/svn/jw-community/trunk/wflow-install/</url>
-    </scm>
+        <connection>scm:git:ssh://git@repo.joget.org/opt/git/jw-community</connection>
+        <developerConnection>scm:git:ssh://git@repo.joget.org/opt/git/jw-community</developerConnection>
+        <url>ssh://git@repo.joget.org/opt/git/jw-community</url>
+      <tag>HEAD</tag>
+  </scm>
     <modules>
         <module>../wflow-app</module>
     </modules>
@@ -32,9 +33,20 @@
         </resources>
         <plugins>
             <plugin>
+                <artifactId>maven-release-plugin</artifactId>
+                <version>2.5.3</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.apache.maven.scm</groupId>
+                        <artifactId>maven-scm-provider-gitexe</artifactId>
+                        <version>1.9.4</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
+            <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>buildnumber-maven-plugin</artifactId>
-                <version>1.0-beta-4</version>
+                <version>1.4</version>
                 <executions>
                     <execution>
                         <phase>validate</phase>
@@ -47,6 +59,7 @@
                     <doCheck>false</doCheck>
                     <doUpdate>false</doUpdate>
                     <revisionOnScmFailure>0</revisionOnScmFailure>
+                    <shortRevisionLength>7</shortRevisionLength>
                 </configuration>
             </plugin>
             <plugin>
@@ -83,12 +96,6 @@
                                 <copy todir="target/data">
                                     <fileset dir="src/main/resources/data" />
                                 </copy>
-                                <copy todir="target/docs">
-                                    <fileset dir="src/main/resources/docs" />
-                                </copy>
-                                <copy todir="target/wflow/app_plugins">
-                                    <fileset dir="src/main/resources/plugins" />
-                                </copy>
                                 <copy file="src/main/resources/README.txt" todir="target" />
                                 <copy file="src/main/resources/CHANGES.txt" todir="target" />
                                 <copy file="src/main/resources/LICENSE.txt" todir="target" />
@@ -100,21 +107,21 @@
                                 <copy file="src/main/resources/joget_stop.ico" todir="target" />
                                 <copy file="src/main/resources/mysql-start.bat" todir="target" />
                                 <copy file="src/main/resources/mysql-stop.bat" todir="target" />
-                                <copy file="src/main/resources/mysql-5.0.22-start.bat" todir="target" />
-                                <copy file="src/main/resources/mysql-5.0.22-stop.bat" todir="target" />
-                                <copy file="src/main/resources/tomcat7-run.bat" todir="target" />
-                                <copy file="src/main/resources/tomcat7-stop.bat" todir="target" />
+                                <copy file="src/main/resources/mysql-${mysql.version}-start.bat" todir="target" />
+                                <copy file="src/main/resources/mysql-${mysql.version}-stop.bat" todir="target" />
+                                <copy file="src/main/resources/tomcat8-run.bat" todir="target" />
+                                <copy file="src/main/resources/tomcat8-stop.bat" todir="target" />
                                 <copy file="src/main/resources/joget-start.bat" todir="target" />
                                 <copy file="src/main/resources/joget-stop.bat" todir="target" />
                                 <copy file="src/main/resources/build.xml" todir="target" />
                                 <copy file="src/main/resources/setup.sh" todir="target" />
-                                <copy file="src/main/resources/tomcat7.sh" todir="target" />
+                                <copy file="src/main/resources/tomcat8.sh" todir="target" />
 
                                 <mkdir dir="downloads" />
-                                <get src="http://dev.joget.org/downloads/dependencies/apache-tomcat-${tomcat.version}.tar.gz" dest="downloads/apache-tomcat-${tomcat.version}.tar.gz" username="public" password="public" usetimestamp="true" />
-                                <get src="http://dev.joget.org/downloads/dependencies/apache-ant-${apache-ant.version}-bin.tar.gz" dest="downloads/apache-ant-${apache-ant.version}-bin.tar.gz" username="public" password="public" usetimestamp="true" />
-                                <get src="http://dev.joget.org/downloads/dependencies/mysql-noinstall-${mysql.version}-win32.zip" dest="downloads/mysql-noinstall-${mysql.version}-win32.zip" username="public" password="public" usetimestamp="true" />
-                                <get src="http://dev.joget.org/downloads/dependencies/jre${jre.version}.tar.gz" dest="downloads/jre${jre.version}.tar.gz" username="public" password="public" usetimestamp="true" />
+                                <get src="https://dev.joget.org/downloads/dependencies/apache-tomcat-${tomcat.version}.tar.gz" dest="downloads/apache-tomcat-${tomcat.version}.tar.gz" username="public" password="public" usetimestamp="true" />
+                                <get src="https://dev.joget.org/downloads/dependencies/apache-ant-${apache-ant.version}-bin.tar.gz" dest="downloads/apache-ant-${apache-ant.version}-bin.tar.gz" username="public" password="public" usetimestamp="true" />
+                                <get src="https://dev.joget.org/downloads/dependencies/mysql-noinstall-${mysql.version}-win32.zip" dest="downloads/mysql-noinstall-${mysql.version}-win32.zip" username="public" password="public" usetimestamp="true" />
+                                <get src="https://dev.joget.org/downloads/dependencies/jre${jre.version}.tar.gz" dest="downloads/jre${jre.version}.tar.gz" username="public" password="public" usetimestamp="true" />
 
                                 <untar compression="gzip" dest="target">
                                     <fileset dir="downloads/">
@@ -159,6 +166,7 @@
                                         <include name="data/**" />
                                         <include name="docs/**" />
                                         <include name="wflow/**" />
+                                        <exclude name="wflow/app_datasource.properties" />
                                         <include name="build.xml" />
                                         <include name="joget-start.bat" />
                                         <include name="joget-stop.bat" />
@@ -166,36 +174,11 @@
                                         <include name="NOTICE.txt" />
                                         <include name="README.txt" />
                                         <include name="CHANGES.txt" />
-                                        <include name="tomcat7-run.bat" />
-                                        <include name="tomcat7-stop.bat" />
+                                        <include name="tomcat8-run.bat" />
+                                        <include name="tomcat8-stop.bat" />
                                         <include name="VERSION.txt" />
                                     </fileset>
                                 </zip>
-
-                                <!--
-                                <zip destfile="builds/joget-demo-windows-${project.version}-${buildNumber}.zip">
-                                    <fileset dir="target">
-                                        <include name="apache-ant-${apache-ant.version}/**" />
-                                        <include name="apache-tomcat-${tomcat.version}/**" />
-                                        <include name="jre${jre.version}/**" />
-                                        <include name="mysql-${mysql.version}-win32/**" />
-                                        <include name="data/**" />
-                                        <include name="docs/**" />
-                                        <include name="wflow/**" />
-                                        <include name="build.xml" />
-                                        <include name="joget-start.bat" />
-                                        <include name="joget-stop.bat" />
-                                        <include name="LICENSE.txt" />
-                                        <include name="NOTICE.txt" />
-                                        <include name="mysql-start.bat" />
-                                        <include name="mysql-stop.bat" />
-                                        <include name="CHANGES.txt" />
-                                        <include name="tomcat7-run.bat" />
-                                        <include name="tomcat7-stop.bat" />
-                                        <include name="VERSION.txt" />
-                                    </fileset>
-                                </zip>
-                                -->
 
                                 <tar compression="gzip" destfile="builds/joget-linux-${project.version}-${buildNumber}.tar.gz">
                                     <tarfileset dir="target" prefix="joget-linux-${project.version}">
@@ -204,13 +187,14 @@
                                         <include name="data/**" />
                                         <include name="docs/**" />
                                         <include name="wflow/**" />
+                                        <exclude name="wflow/app_datasource.properties" />
                                         <include name="build.xml" />
                                         <include name="LICENSE.txt" />
                                         <include name="NOTICE.txt" />
                                         <include name="README.txt" />
                                         <include name="CHANGES.txt" />
                                         <include name="setup.sh" />
-                                        <include name="tomcat7.sh" />
+                                        <include name="tomcat8.sh" />
                                         <include name="VERSION.txt" />
                                     </tarfileset>
                                     <tarfileset dir="target" filemode="755" prefix="joget-linux-${project.version}">
@@ -219,18 +203,6 @@
                                         <include name="*.sh" />
                                     </tarfileset>
                                 </tar>
-
-                                <!--
-                                <zip destfile="builds/joget-updates-${project.version}-${buildNumber}.zip">
-                                    <fileset dir="target">
-                                        <include name="apache-tomcat-${tomcat.version}/webapps/jw**" />
-                                        <include name="wflow/app_plugins/**" />
-                                        <include name="build.xml" />
-                                        <include name="VERSION.txt" />
-                                        <include name="CHANGES.txt" />
-                                    </fileset>
-                                </zip>
-                                -->
 
                             </tasks>
                         </configuration>

@@ -11,6 +11,7 @@ import org.displaytag.util.ParamEncoder;
 import org.joget.apps.app.service.AppUtil;
 import org.joget.apps.datalist.service.DataListDecorator;
 import org.joget.commons.util.LogUtil;
+import org.joget.commons.util.ResourceBundleUtil;
 import org.joget.commons.util.StringUtil;
 import org.joget.plugin.base.PluginManager;
 import org.joget.workflow.util.WorkflowUtil;
@@ -54,7 +55,7 @@ public class DataList {
     private Integer size;
     private Integer total;
     private Integer pageSize;
-    private int defaultPageSize = DEFAULT_PAGE_SIZE;
+    private int defaultPageSize = 0;
     private String pageSizeList;
     private String defaultSortColumn;
     private String defaultOrder;
@@ -69,6 +70,8 @@ public class DataList {
     private String selectionType = SELECTION_TYPE_MULTIPLE;
     private Collection<DataListFilterQueryObject> dataListFilterQueryObjectList = new ArrayList<DataListFilterQueryObject>();
     private boolean filterQueryBuild = false;
+    private boolean disableQuickEdit = false;
+    private boolean showDataWhenFilterSet = false;
 
     //Required when using session
     public void init() {
@@ -99,7 +102,7 @@ public class DataList {
             if (getDataListParamString(PARAMETER_PAGE_SIZE) != null) {
                 queryString2 += getDataListEncodedParamName(PARAMETER_PAGE_SIZE) + "=" + getDataListParamString(PARAMETER_PAGE_SIZE) + "&";
             }
-            actionResult.setUrl("?" + StringUtil.mergeRequestQueryString(queryString, queryString2));
+            actionResult.setUrl("?"+ StringUtil.mergeRequestQueryString(queryString, queryString2));
         }
     }
 
@@ -132,6 +135,13 @@ public class DataList {
     }
 
     public void setActions(DataListAction[] actions) {
+        if (actions != null && actions.length > 0) {
+            for (DataListAction a : actions) {
+                if (a instanceof DataListActionDefault) {
+                    ((DataListActionDefault) a).setDatalist(this);
+                }
+            }
+        }
         this.actions = actions;
     }
 
@@ -140,6 +150,9 @@ public class DataList {
     }
 
     public void setBinder(DataListBinder binder) {
+        if (binder != null && binder instanceof DataListBinderDefault) {
+            ((DataListBinderDefault) binder).setDatalist(this);
+        }
         this.binder = binder;
     }
 
@@ -164,6 +177,21 @@ public class DataList {
     }
 
     public void setColumns(DataListColumn[] columns) {
+        if (columns != null && columns.length > 0) {
+            for (DataListColumn c : columns) {
+                if (c.getFormats() != null && !c.getFormats().isEmpty()) {
+                    for (DataListColumnFormat f : c.getFormats()) {
+                        if (f instanceof DataListColumnFormatDefault) {
+                            ((DataListColumnFormatDefault) f).setDatalist(this);
+                        }
+                    }
+                }
+                if (c.getAction() != null && c.getAction() instanceof DataListActionDefault) {
+                    ((DataListActionDefault) c.getAction()).setDatalist(this);
+                }
+            }
+        }
+        
         this.columns = columns;
     }
 
@@ -172,6 +200,14 @@ public class DataList {
     }
 
     public void setFilters(DataListFilter[] filters) {
+        if (filters != null && filters.length > 0) {
+            for (DataListFilter f : filters) {
+                if (f.getType() != null && f.getType() instanceof DataListFilterTypeDefault) {
+                    ((DataListFilterTypeDefault) f.getType()).setDatalist(this);
+                }
+            }
+        }
+        
         this.filters = filters;
     }
 
@@ -188,6 +224,13 @@ public class DataList {
     }
 
     public int getDefaultPageSize() {
+        if (defaultPageSize == 0) {
+            try {
+                defaultPageSize = Integer.parseInt(ResourceBundleUtil.getMessage("dbuilder.defaultPageSize"));
+            } catch (NumberFormatException e) {
+                defaultPageSize = DEFAULT_PAGE_SIZE;
+            }
+        }
         return defaultPageSize;
     }
 
@@ -231,13 +274,23 @@ public class DataList {
         if (getBinder() != null) {
             String key = getBinder().getPrimaryKeyColumnName();
             String keyParam = getDataListEncodedParamName(CHECKBOX_PREFIX + key);
+            String queryString = WorkflowUtil.getHttpServletRequest().getQueryString();
+            if (queryString == null) {
+                queryString = "";
+            }
             for (int i = 0; i <  rowActions.length; i++) {
                 DataListAction r = rowActions[i];
                 if (r.getHref() == null || (r.getHref() != null && r.getHref().isEmpty())) {
-                    r.setProperty("href", "?" + getActionParamName() + "=" + r.getPropertyString("id"));
-                    r.setProperty("target", "_self");
-                    r.setProperty("hrefParam", keyParam);
-                    r.setProperty("hrefColumn", key);
+                    r.setProperty("href", "?" + StringUtil.mergeRequestQueryString(queryString, getActionParamName() + "=" + r.getPropertyString("id")));
+                    if (r.getTarget() == null || (r.getTarget() != null && r.getTarget().isEmpty())) {
+                        r.setProperty("target", "_self");
+                    }
+                    if (r.getHrefParam() == null || (r.getHrefParam() != null && r.getHrefParam().isEmpty())) {
+                        r.setProperty("hrefParam", keyParam);
+                    }
+                    if (r.getHrefColumn() == null || (r.getHrefColumn() != null && r.getHrefColumn().isEmpty())) {
+                        r.setProperty("hrefColumn", key);
+                    }
                 }
                 rowActions[i] = r;
             }
@@ -245,8 +298,41 @@ public class DataList {
         
         return rowActions;
     }
+    
+    public DataListAction getColumnAction(DataListColumn column) {
+        DataListAction action = column.getAction();
+        if (getBinder() != null && action != null) {
+            String key = getBinder().getPrimaryKeyColumnName();
+            String keyParam = getDataListEncodedParamName(CHECKBOX_PREFIX + key);
+            if (action.getHref() == null || (action.getHref() != null && action.getHref().isEmpty())) {
+                String queryString = WorkflowUtil.getHttpServletRequest().getQueryString();
+                if (queryString == null) {
+                    queryString = "";
+                }
+                action.setProperty("href", "?" + StringUtil.mergeRequestQueryString(queryString, getActionParamName() + "=" + "ca_" + column.getPropertyString("id")));
+                if (action.getTarget() == null || (action.getTarget() != null && action.getTarget().isEmpty())) {
+                    action.setProperty("target", "_self");
+                }
+                if (action.getHrefParam() == null || (action.getHrefParam() != null && action.getHrefParam().isEmpty())) {
+                    action.setProperty("hrefParam", keyParam);
+                }
+                if (action.getHrefColumn() == null || (action.getHrefColumn() != null && action.getHrefColumn().isEmpty())) {
+                    action.setProperty("hrefColumn", key);
+                }
+            }
+        }
+        return action;
+    }
 
     public void setRowActions(DataListAction[] rowActions) {
+        if (rowActions != null && rowActions.length > 0) {
+            for (DataListAction a : rowActions) {
+                if (a instanceof DataListActionDefault) {
+                    ((DataListActionDefault) a).setDatalist(this);
+                }
+            }
+        }
+        
         this.rowActions = rowActions;
     }
 
@@ -360,6 +446,10 @@ public class DataList {
     }
 
     public DataListCollection getRows() {
+        if (isReturnNoDataWhenFilterNotSet()) {
+            return null;
+        }
+        
         if (rows == null) {
             rows = getRows(null, null);
         }
@@ -382,11 +472,17 @@ public class DataList {
     }
 
     public int getSize() {
+        if (isReturnNoDataWhenFilterNotSet()) {
+            return 0;
+        }
+        
         if (size == null) {
             try {
                 if (getBinder() != null) {
                     //force get total before get size to bypass additional filter
-                    getTotal();
+                    if (!"true".equals(ResourceBundleUtil.getMessage("dbuilder.menu.counter.considerFilters"))) {
+                        getTotal();
+                    }
                     size = getBinder().getDataTotalRowCount(this, getBinder().getProperties(), getFilterQueryObjects());
                 } else {
                     size = 0;
@@ -404,6 +500,10 @@ public class DataList {
     }
     
     public int getTotal() {
+        if ("true".equals(ResourceBundleUtil.getMessage("dbuilder.menu.counter.considerFilters"))) {
+            return getSize();
+        }
+        
         if (total == null) {
             try {
                 if (getBinder() != null) {
@@ -463,13 +563,24 @@ public class DataList {
                 }
             }
             
-            //look from row action as well
             for (DataListAction action : getRowActions()) {
                 String actionId = action.getPropertyString("id");
                 if (actionParamValue.equals(actionId)) {
                     // invoke action
                     actionResult = action.executeAction(this, selectedKeys);
                     break;
+                }
+            }
+            
+            //look from column action as well
+            if (actionParamValue.startsWith("ca_column_")) {
+                for (DataListColumn column : columns) {
+                    DataListAction action = column.getAction();
+                    if (action != null && actionParamValue.equals("ca_"+column.getPropertyString("id"))) {
+                        // invoke action
+                        actionResult = action.executeAction(this, selectedKeys);
+                        break;
+                    }
                 }
             }
             
@@ -644,10 +755,41 @@ public class DataList {
             if (o.equals(value)) {
                 selected = " selected='selected'";
             }
-            template += "<option value='" + o + "'" + selected + ">" + o + "</option>";
+            boolean isInteger = true;
+            try {
+                Integer.parseInt(o); 
+            } catch (Exception e) {
+                isInteger = false;
+            }
+            if (isInteger) {
+                template += "<option value='" + o + "'" + selected + ">" + o + "</option>";
+            }
         }
 
         template += "</select>";
         return template;
+    }
+
+    public boolean isDisableQuickEdit() {
+        return disableQuickEdit;
+    }
+
+    public void setDisableQuickEdit(boolean disableQuickEdit) {
+        this.disableQuickEdit = disableQuickEdit;
+    }
+
+    public boolean isShowDataWhenFilterSet() {
+        return showDataWhenFilterSet;
+    }
+
+    public void setShowDataWhenFilterSet(boolean showDataWhenFilterSet) {
+        this.showDataWhenFilterSet = showDataWhenFilterSet;
+    }
+    
+    public boolean isReturnNoDataWhenFilterNotSet() {
+        if (isShowDataWhenFilterSet() && (getFilterQueryObjects() == null || getFilterQueryObjects().length == 0)) {
+            return true;
+        }
+        return false;
     }
 }

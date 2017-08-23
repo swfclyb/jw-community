@@ -9,7 +9,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -32,8 +31,8 @@ import org.joget.apps.datalist.model.DataListFilter;
 import org.joget.apps.datalist.model.DataListFilterType;
 import org.joget.apps.datalist.service.DataListService;
 import org.joget.apps.ext.ConsoleWebPlugin;
-import org.joget.commons.util.CsvUtil;
 import org.joget.commons.util.LogUtil;
+import org.joget.commons.util.ResourceBundleUtil;
 import org.joget.commons.util.SecurityUtil;
 import org.joget.commons.util.StringUtil;
 import org.joget.plugin.base.Plugin;
@@ -95,6 +94,7 @@ public class DatalistBuilderWebController {
         }
 
         map.addAttribute("id", id);
+        map.addAttribute("filterParam", new ParamEncoder(id).encodeParameterName(DataList.PARAMETER_FILTER_PREFIX));
         map.addAttribute("datalist", datalist);
         map.addAttribute("json", PropertyUtil.propertiesJsonLoadProcessing(listJson));
         return "dbuilder/builder";
@@ -113,7 +113,7 @@ public class DatalistBuilderWebController {
         DatalistDefinition datalist = datalistDefinitionDao.loadById(id, appDef);
         DataList dlist = dataListService.fromJson(json);
         datalist.setName(dlist.getName());
-        datalist.setDescription(dlist.getName());
+        datalist.setDescription(dlist.getDescription());
         datalist.setJson(PropertyUtil.propertiesJsonStoreProcessing(datalist.getJson(), json));
 
         boolean success = datalistDefinitionDao.update(datalist);
@@ -178,15 +178,18 @@ public class DatalistBuilderWebController {
             Plugin p = (Plugin) action;
             HashMap hm = new HashMap();
             hm.put("name", p.getName());
-            hm.put("label", action.getLabel());
+            hm.put("label", p.getI18nLabel());
             hm.put("className", action.getClassName());
             if (action instanceof PropertyEditable) {
                 String propertyOptions = ((PropertyEditable) action).getPropertyOptions();
                 if (propertyOptions != null && !propertyOptions.isEmpty()) {
-                    hm.put("propertyOptions", propertyOptions);
+                    hm.put("propertyOptions", PropertyUtil.injectHelpLink(p.getHelpLink(), propertyOptions));
                 }
             }
             hm.put("type", "text");
+            hm.put("supportColumn", action.supportColumn());
+            hm.put("supportRow", action.supportRow());
+            hm.put("supportList", action.supportList());
             collection.add(hm);
         }
         jsonObject.accumulate("actions", collection);
@@ -194,7 +197,7 @@ public class DatalistBuilderWebController {
     }
 
     @RequestMapping(value = "/json/console/app/(*:appId)/(~:appVersion)/builder/binder/columns", method = RequestMethod.POST)
-    public void getBuilderDataColumnList(ModelMap map, Writer writer, @RequestParam("appId") String appId, @RequestParam(required = false) String appVersion, @RequestParam String id, @RequestParam String binderId, HttpServletRequest request) throws Exception {
+    public void getBuilderDataColumnList(ModelMap map, Writer writer, @RequestParam("appId") String appId, @RequestParam(required = false) String appVersion, @RequestParam String id, @RequestParam String binderId, @RequestParam String binderJson, HttpServletRequest request) throws Exception {
         AppDefinition appDef = appService.getAppDefinition(appId, appVersion);
         JSONObject jsonObject = new JSONObject();
 
@@ -205,7 +208,7 @@ public class DatalistBuilderWebController {
         dataList = parseFromJsonParameter(map, dataList, id, request);
 
         // get binder from request
-        DataListBinder binder = createDataListBinderFromRequestInternal(appDef, id, binderId, request);
+        DataListBinder binder = createDataListBinderFromRequestInternal(appDef, id, binderId, binderJson);
         if (binder != null) {
             dataList.setBinder(binder);
         }
@@ -277,33 +280,24 @@ public class DatalistBuilderWebController {
         return "dbuilder/filterTmplate";
     }
 
-    protected DataListBinder createDataListBinderFromRequestInternal(AppDefinition appDef, String datalistId, String binderId, HttpServletRequest request) {
+    protected DataListBinder createDataListBinderFromRequestInternal(AppDefinition appDef, String datalistId, String binderId, String binderJson) {
         DataListBinder binder = null;
         if (binderId != null && binderId.trim().length() > 0) {
             // create binder
             binder = dataListService.getBinder(binderId);
+            
+            if (binder != null) {
+                if (binderJson.contains(SecurityUtil.ENVELOPE) || binderJson.contains(PropertyUtil.PASSWORD_PROTECTED_VALUE)) {
+                    DatalistDefinition datalistDef = datalistDefinitionDao.loadById(datalistId, appDef);
 
-            if (request != null) {
-                // get request params
-                Enumeration e = request.getParameterNames();
-                while (e.hasMoreElements()) {
-                    String paramName = (String) e.nextElement();
-                    if (paramName.startsWith(PREFIX_BINDER_PROPERTY)) {
-                        String[] paramValue = (String[]) request.getParameterValues(paramName);
-                        String propName = paramName.substring(PREFIX_BINDER_PROPERTY.length());
-                        
-                        String value = CsvUtil.getDeliminatedString(paramValue);
-                        
-                        if (value.contains(SecurityUtil.ENVELOPE) || value.contains(PropertyUtil.PASSWORD_PROTECTED_VALUE)) {
-                            DatalistDefinition datalist = datalistDefinitionDao.loadById(datalistId, appDef);
-                            
-                            if (datalist != null) {
-                                value = PropertyUtil.propertiesJsonStoreProcessing(datalist.getJson(), value);
-                            }
-                        }
-                        
-                        binder.setProperty(propName, AppUtil.processHashVariable(value, null, null, null));
+                    if (datalistDef != null) {
+                        binderJson = PropertyUtil.propertiesJsonStoreProcessing(datalistDef.getJson(), binderJson);
                     }
+                }
+
+                if (binderJson != null && binderJson.length() > 2) {
+                    binderJson = AppUtil.processHashVariable(binderJson, null, null, null);
+                    binder.setProperties(PropertyUtil.getPropertiesValueFromJson(binderJson));
                 }
             }
         }
@@ -357,7 +351,7 @@ public class DatalistBuilderWebController {
     @RequestMapping("/app/(*:appId)/(~:appVersion)/datalist/embed")
     public String embedDatalist(ModelMap model, HttpServletResponse response, @RequestParam("appId") String appId, @RequestParam(value = "appVersion", required = false) String version, HttpServletRequest request, @RequestParam("_submitButtonLabel") String buttonLabel, @RequestParam("_callback") String callback, @RequestParam("_setting") String callbackSetting, @RequestParam(required = false) String id, @RequestParam(value = "_listId", required = false) String listId, @RequestParam(value = "_type", required = false) String selectionType) throws JSONException {
         AppDefinition appDef = appService.getAppDefinition(appId, version);
-
+        
         if (appDef == null) {
             response.setStatus(HttpServletResponse.SC_NOT_FOUND);
             return null;
@@ -381,6 +375,10 @@ public class DatalistBuilderWebController {
         DataList dataList = dataListService.fromJson(json);
         dataList.setSelectionType(selectionType);
         
+        if (buttonLabel.isEmpty()) {
+            buttonLabel = ResourceBundleUtil.getMessage("general.method.label.submit");
+        }
+        
         model.addAttribute("id", id);
         model.addAttribute("json", escapedJson);
         model.addAttribute("buttonLabel", buttonLabel);
@@ -389,7 +387,11 @@ public class DatalistBuilderWebController {
         model.addAttribute("callback", callback);
         
         if (request.getParameter("_mapp") != null) {
-            response.setHeader("Access-Control-Allow-Origin", request.getHeader("Origin"));
+            String origin = request.getHeader("Origin");
+            if (origin != null) {
+                origin = origin.replace("\n", "").replace("\r", "");
+            }
+            response.setHeader("Access-Control-Allow-Origin", origin);
             response.setHeader("Access-Control-Allow-Credentials", "true");
             response.setHeader("Content-type", "application/xml");
         

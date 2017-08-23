@@ -22,9 +22,9 @@
 
         <c:set var="mobileView" value="<%= MobileUtil.isMobileView() %>"/>
         <c:if test="${!mobileView}">
-            <script type="text/javascript" src="${pageContext.request.contextPath}/js/json/formUtil.js?build=<fmt:message key="build.number"/>"></script>
-            <link rel="stylesheet" href="${pageContext.request.contextPath}/css/form.css?build=<fmt:message key="build.number"/>" />
-
+            <link rel="stylesheet" type="text/css" href="${pageContext.request.contextPath}/wro/form_common.css?build=<fmt:message key="build.number"/>" />
+            <script type="text/javascript" src="${pageContext.request.contextPath}/wro/form_common.js?build=<fmt:message key="build.number"/>"></script>
+            
             <c:if test="${rightToLeft == 'true' || fn:startsWith(currentLocale, 'ar') == true}">
                 <link rel="stylesheet" href="${pageContext.request.contextPath}/css/form_rtl.css?build=<fmt:message key="build.number"/>" />
             </c:if>
@@ -46,11 +46,11 @@
         <fieldset id="form-canvas">
 
                 <c:if test="${submitted && errorCount > 0}">
-                    <div class="form-message"><fmt:message key="client.app.run.process.label.validationError" /></div>
+                    <div class="form-message form-errors"><fmt:message key="client.app.run.process.label.validationError" /></div>
                 </c:if>
                 <c:if test="${!stay && submitted && errorCount <= 0}">
-                    <div class="form-message"><fmt:message key="client.app.run.process.label.formSubmitted" /></div>
-                    <c:if test="${closeDialog}">
+                    <div class="form-message form-success"><fmt:message key="client.app.run.process.label.formSubmitted" /></div>
+                    <c:if test="${!empty closeDialog && closeDialog}">
                     <script type="text/javascript">
                         if (parent && parent.PopupDialog && parent.PopupDialog.closeDialog) {
                             parent.PopupDialog.closeDialog();

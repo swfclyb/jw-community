@@ -3,11 +3,60 @@
     properties : [{
         name : 'label',
         label : '@@datalist.formrowdeletedatalistaction.label@@',
-        type : 'textfield'
+        type : 'textfield',
+        required : 'true'
     },
     %s,{
         name : 'confirmation',
         label : '@@datalist.formrowdeletedatalistaction.confirmationMessage@@',
         type : 'textfield'
+    },
+    {
+        name:'deleteGridData',
+        label:'@@datalist.formrowdeletedatalistaction.deleteGridData@@',
+        type:'checkbox',
+        value:'false',
+        options:[
+            {
+                value:'true',
+                label:''
+            }
+        ]
+    },
+    {
+        name:'deleteSubformData',
+        label:'@@datalist.formrowdeletedatalistaction.deleteChildFormData@@',
+        type:'checkbox',
+        value:'false',
+        options:[
+            {
+                value:'true',
+                label:''
+            }
+        ]
+    },
+    {
+        name:'deleteFiles',
+        label:'@@datalist.formrowdeletedatalistaction.deleteFiles@@',
+        type:'checkbox',
+        value:'false',
+        options:[
+            {
+                value:'true',
+                label:''
+            }
+        ]
+    },
+    {
+        name:'abortRelatedRunningProcesses',
+        label:'@@datalist.formrowdeletedatalistaction.abortRelatedRunningProcesses@@',
+        type:'checkbox',
+        value:'false',
+        options:[
+            {
+                value:'true',
+                label:''
+            }
+        ]
     }]
 }]

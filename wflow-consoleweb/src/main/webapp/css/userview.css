@@ -134,7 +134,6 @@ body.rtl #content {
     height:16px;
 }
 #main-action-help {
-    background: url(../images/v3/console/icn_form_help.png) 0 0 no-repeat; 
     display: block;
     width: 16px;
     height: 16px;
@@ -149,18 +148,20 @@ body #ui-datepicker-div {
 }
 
 #preview-label {
+    box-sizing: initial;
     position: fixed;
     top: 75px;
     right: -225px;
-    width: 600px;
-    padding: 10px;
+    width: 230px;
+    padding: 10px 210px;
+    line-height: 26px;
     font-size: 24px;
     text-align: center;
     color: rgb(255, 255, 255);
     font-family: 'trebuchet ms', verdana, arial, sans-serif;
     background-color: rgb(0, 0, 0);
     border: 1px solid rgb(170, 170, 170);
-    z-index: 500;
+    z-index: 3000;
     opacity: 0.5;
     -moz-transform: rotate(45deg);  /* FF3.5/3.6 */
     -o-transform: rotate(45deg);  /* Opera 10.5 */
@@ -177,6 +178,17 @@ body #ui-datepicker-div {
     filter: progid:DXImageTransform.Microsoft.Matrix(sizingMethod='auto expand', M11=0.7071067811865476, M12=-0.7071067811865475, M21=0.7071067811865475, M22=0.7071067811865476) progid:DXImageTransform.Microsoft.Alpha(Opacity=50); /* IE6,IE7 */
     -ms-filter: "progid:DXImageTransform.Microsoft.Matrix(SizingMethod='auto expand', M11=0.7071067811865476, M12=-0.7071067811865475, M21=0.7071067811865475, M22=0.7071067811865476) progid:DXImageTransform.Microsoft.Alpha(Opacity=50)"; /* IE8 */
     zoom: 1;
+}
+#preview-label.testing {
+    background-color: red;
+    opacity: 1;
+}
+#preview-label.testing a {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    margin-left: -140px;
+    margin-top: -15px;
 }
 .systemAlert{
     background:#FFFFD6;
@@ -220,7 +232,43 @@ body .ui-dialog .ui-dialog-content {
 body .ui-widget-overlay {
     height: 1000%;
 }
+body .ui-front {
+    z-index: 500;
+}
+.ui-html .ui-welcome {
+    width: 80%;
+    margin: auto;
+}
+.ui-html .ui-welcome .icon {
+    margin-right: 20px; 
+    margin-bottom: 20px; 
+    float: left; 
+    clear: left;
+}
 .stop-scrolling {
     height: 100%;
     overflow: hidden;
 }
+input[type="button"], input[type="submit"], input[type="reset"] {
+  -webkit-appearance: button;
+}
+.rtl .dataList th.dataListAlignRight,
+.dataList th.dataListAlignLeft,
+.rtl .dataList td.dataListAlignRight,
+.dataList td.dataListAlignLeft {
+    text-align: left;
+}
+.rtl .dataList th.dataListAlignLeft,
+.dataList th.dataListAlignRight,
+.rtl .dataList td.dataListAlignLeft,
+.dataList td.dataListAlignRight {
+    text-align: right;
+}
+.rtl .dataList th.dataListAlignCenter,
+.dataList th.dataListAlignCenter,
+.rtl .dataList td.dataListAlignCenter,
+.dataList td.dataListAlignCenter {
+    text-align: center;
+}
+.rowCount:before {content: "("; display: inline-block;}
+.rowCount:after {content: ")"; display: inline-block;}

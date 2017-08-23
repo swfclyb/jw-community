@@ -1,6 +1,7 @@
 <%@ include file="/WEB-INF/jsp/includes/taglibs.jsp" %>
 <%@ page import="org.joget.workflow.util.WorkflowUtil"%>
 <%@ page import="org.joget.apps.app.service.AppUtil"%>
+<%@ page import="org.joget.apps.userview.model.Userview"%>
 <%@ page import="org.joget.directory.model.service.DirectoryUtil"%>
 <%@page contentType="text/html" pageEncoding="windows-1252"%>
 
@@ -8,6 +9,7 @@
     String rightToLeft = WorkflowUtil.getSystemSetupValue("rightToLeft");
     pageContext.setAttribute("rightToLeft", rightToLeft);
 %>
+<% response.setHeader("P3P", "CP=\"This is not a P3P policy\""); %>
 
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
     "http://www.w3.org/TR/html4/loose.dtd">
@@ -23,9 +25,17 @@
             <c:set var="redirectUrl" scope="request" value="${redirectUrl}userview/${appId}/${userview.properties.id}/"/>
         </c:otherwise>
     </c:choose>
-    <c:if test="${!empty key && key ne '______'}">
-        <c:set var="redirectUrl" scope="request" value="${redirectUrl}${key}"/>
-    </c:if>
+    <c:choose>
+        <c:when test="${!empty key}">
+            <c:set var="redirectUrl" scope="request" value="${redirectUrl}${key}"/>
+        </c:when>
+        <c:otherwise>
+            <c:set var="key" scope="request" value="<%= Userview.USERVIEW_KEY_EMPTY_VALUE %>"/>
+            <c:if test="${!empty menuId}">
+                <c:set var="redirectUrl" scope="request" value="${redirectUrl}${key}"/>
+            </c:if>    
+        </c:otherwise>    
+    </c:choose>
     <c:if test="${!empty menuId}">
         <c:set var="redirectUrl" scope="request" value="${redirectUrl}/${menuId}"/>
     </c:if>
@@ -36,6 +46,7 @@
 <html>
     <head>
         <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
         <title>
             <c:set var="html">
                 ${userview.properties.name} &nbsp;&gt;&nbsp;
@@ -51,7 +62,7 @@
         <script type="text/javascript">
             ${userview.setting.theme.javascript}
             UI.base = "${pageContext.request.contextPath}";    
-            UI.userview_app_id = '${appId}';
+            UI.userview_app_id = '<c:out value="${appId}"/>';
             UI.userview_id = '${userview.properties.id}';
         </script>
 
@@ -77,7 +88,7 @@
                     <c:otherwise>
                         <div id="header-info">
                             <div id="header-name">
-                                <a href="${pageContext.request.contextPath}/web/userview/${appId}/${userview.properties.id}" id="header-link"><span id="name">${userview.properties.name}</span></a>
+                                <a href="${pageContext.request.contextPath}/web/userview/<c:out value="${appId}"/>/${userview.properties.id}" id="header-link"><span id="name">${userview.properties.name}</span></a>
                             </div>
                             <div id="header-description">
                                 <span id="description">${userview.properties.description}</span>

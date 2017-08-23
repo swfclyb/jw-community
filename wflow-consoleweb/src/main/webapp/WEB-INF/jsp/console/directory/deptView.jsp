@@ -4,6 +4,7 @@
 
 <div id="nav">
     <div id="nav-title">
+        <p><i class="icon-group"></i> <fmt:message key='console.header.menu.label.users'/></p>
         <p><fmt:message key="console.directory.org.common.label"/>: <span class="nav-subtitle"><c:out value="${department.organization.name}"/></span></p>
     </div>
     <div id="nav-body">
@@ -67,7 +68,7 @@
                        var="JsonDeptDataTable"
                        divToUpdate="departmentList"
                        jsonData="data"
-                       rowsPerPage="10"
+                       rowsPerPage="15"
                        width="100%"
                        sort="name"
                        desc="false"
@@ -110,7 +111,7 @@
                        var="JsonUserDataTable"
                        divToUpdate="userList"
                        jsonData="data"
-                       rowsPerPage="10"
+                       rowsPerPage="15"
                        width="100%"
                        sort="user.username"
                        desc="false"

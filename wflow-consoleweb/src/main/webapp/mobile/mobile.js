@@ -1,5 +1,3 @@
-var $jqm = $.mobile;
-
 var Mobile = {
 
     contextPath: "/jw",
@@ -70,7 +68,7 @@ var Mobile = {
                 m = new String(m).replace(/'/g, "");
                 $(el).removeAttr("onclick");
                 var switchPage = function(e) {
-                    $jqm.changePage( m, {
+                    $.mobile.changePage( m, {
                         transition: "slide", 
                         reverse:true
                     } );
@@ -81,29 +79,22 @@ var Mobile = {
             }
         });
         // change list link URLs
-        $("a").each(function(index, el) {
+        $("a[target]").each(function(index, el) {
             var target = $(el).attr("target");
             if (target === "_self") {
                 $(el).removeAttr("target");
             }
         });
         var thisWindow = window;
-        $("a:not('[rel=popup]')").on("click", function() {
-            var previousUrl = thisWindow.location.href;
-            $.mobile.loading('show');
-            setTimeout(function() {
-                var currentUrl = thisWindow.location.href;
-                if (currentUrl == previousUrl) {
-                    $.mobile.loading('hide');
-                }
-            }, 2000);
-        });
+        
         // disable ajax for forms with file uploads
         var uploadFields = $("input[type='file']");
         if (uploadFields.length > 0) {
             // disable ajax form submission
             var parentForm =  uploadFields.parents("form");
             parentForm.attr("data-ajax", "false");
+            parentForm.attr("action", parentForm.attr("action") + "&" + ConnectionManager.tokenName + "=" + ConnectionManager.tokenValue);
+            parentForm.prepend('<input name="'+ConnectionManager.tokenName+'" value="'+ConnectionManager.tokenValue+'" type="hidden"/>');
         }
         // disable ajax for file upload links
         $(".form-fileupload-value a").attr("data-ajax", "false");
@@ -215,7 +206,13 @@ var Mobile = {
                 }
             });
         } else {
-            window.location.href = Mobile.contextPath + "/j_spring_security_logout";
+            $.ajax({
+                type: 'POST',
+                url: Mobile.contextPath + "/j_spring_security_logout",
+                success: function(data) {
+                    window.location.href = Mobile.contextPath + "/web/mlogin";
+                }
+            });
         }
     }
 };
@@ -226,7 +223,7 @@ $(document).bind("mobileinit", function(){
     $.mobile.autoInitializePage = false;
     $.mobile.touchOverflowEnabled = false;
 });
-$("#userview").live("pageshow", function() {
+$(document).on("pageshow", "div[data-role=page]", function() {
     Mobile.initPage();
     Mobile.checkNetworkStatus();
 });

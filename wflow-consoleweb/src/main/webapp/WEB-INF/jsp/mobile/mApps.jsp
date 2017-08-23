@@ -1,5 +1,9 @@
 <%@ include file="/WEB-INF/jsp/includes/taglibs.jsp" %>
 <%@ page import="org.joget.workflow.util.WorkflowUtil"%>
+<%@ page import="org.joget.apps.userview.model.Userview"%>
+
+<c:set var="key" value="<%= Userview.USERVIEW_KEY_EMPTY_VALUE %>"/>
+
 <!DOCTYPE html>
 <html class="ui-mobile" manifest="${pageContext.request.contextPath}/web/mobilecache/default">
     <head>
@@ -29,6 +33,18 @@
             $("#mobileHome").live("pageshow", function() {
                 Mobile.checkNetworkStatus();
             });
+            <c:if test="${cordova eq 'true'}">
+                $.cookie("cordova", "true", { path: '${pageContext.request.contextPath}' });
+            </c:if>
+            <c:if test="${cordova eq 'false'}">
+                $.removeCookie("cordova");
+            </c:if>
+            <c:if test="${allApps eq 'true'}">
+                $.cookie("all-apps", "true", { path: '${pageContext.request.contextPath}' });
+            </c:if>
+            <c:if test="${allApps eq 'false'}">
+                $.removeCookie("all-apps");
+            </c:if>
         </script>
     </head>
 
@@ -56,12 +72,12 @@
                         <c:set var="userviewDefinitionList" value="${appDefinition.userviewDefinitionList}"/>
                         <c:forEach items="${userviewDefinitionList}" var="userviewDefinition">
                             <li>
-                                <a onclick="showLoading('${pageContext.request.contextPath}/web/mobile/${appDefinition.id}/${userviewDefinition.id}')" href="${pageContext.request.contextPath}/web/mobile/${appDefinition.id}/${userviewDefinition.id}//landing" rel="external">
+                                <a onclick="showLoading('${pageContext.request.contextPath}/web/mobile/${appDefinition.id}/${userviewDefinition.id}')" href="${pageContext.request.contextPath}/web/mobile/${appDefinition.id}/${userviewDefinition.id}/${key}/landing" rel="external">
                                     <img src="${pageContext.request.contextPath}/web/userview/screenshot/${appDefinition.id}/${userviewDefinition.id}" width="150" border="0" />
                                     <p><b><c:out value="${appDefinition.name}"/></b></p>
-                                    <h4><c:out value="${userviewDefinition.name}"/></h4>
+                                    <h4><ui:stripTag html="${userviewDefinition.name}"/></h4>
                                     <p>
-                                        <c:out value="${userviewDefinition.description}"/>
+                                        <ui:stripTag html="${userviewDefinition.description}"/>
                                         <br>
                                         <fmt:message key="console.app.common.label.version"/> ${appDefinition.version}
                                     </p>
@@ -84,6 +100,7 @@
             }
         </style>
         <jsp:include page="/WEB-INF/jsp/console/welcome.jsp" flush="true" />          
+        <jsp:include page="mFooter.jsp" flush="true" />   
     </body>
 
 </html>

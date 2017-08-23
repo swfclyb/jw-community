@@ -43,25 +43,44 @@
                 type : 'header'
             },
             {
-                name:'visibilityControl',
-                label:'@@form.section.fieldIdControl@@',
-                type:'textfield',
-                required:'False'
-            },
-            {
-                name:'visibilityValue',
-                label:'@@form.section.fieldValueControl@@',
-                type:'textfield',
-                required:'False'
-            },
-            {
-                name : 'regex',
-                label : '@@form.section.regex@@',
-                type : 'checkbox',
-                value : 'false',
-                options : [{
-                    value : 'true',
-                    label : ''
+                name : 'rules',
+                label : '@@form.section.visibilityRules@@',
+                type : 'gridCombine',
+                columns : [{
+                    key : 'join',
+                    label : '@@form.section.join@@',
+                    options : [
+                        {value : '', label : '@@form.section.join.and@@'},
+                        {value : 'or', label : '@@form.section.join.or@@'}
+                    ]
+                },
+                {
+                    key : 'reverse',
+                    label : '@@form.section.reverse@@',
+                    type : 'truefalse',
+                    false_value: ''
+                },
+                {
+                    key : 'visibilityControl',
+                    label : '@@form.section.fieldIdControl@@',
+                    options_extra : [
+                        {value : '', label : ''},
+                        {value : '(', label : '('},
+                        {value : ')', label : ')'}
+                    ],
+                    type : 'autocomplete',
+                    options_callback : 'FormBuilder.getFieldOptions',
+                    required: 'true'
+                },
+                {
+                    key : 'visibilityValue',
+                    label : '@@form.section.fieldValueControl@@'
+                },
+                {
+                    key : 'regex',
+                    label : '@@form.section.regex@@',
+                    type : 'truefalse',
+                    false_value: ''
                 }]
             },
             {
@@ -73,6 +92,16 @@
                 label:'@@form.section.permission@@',
                 type:'elementselect',
                 options_ajax:'[CONTEXT_PATH]/web/property/json/getElements?classname=org.joget.apps.form.model.FormPermission',url:'[CONTEXT_PATH]/web/property/json/getPropertyOptions'
+            },
+            {
+                label : '@@fbuilder.development@@',
+                type : 'header'
+            },
+            {
+                name : 'comment',
+                label : '@@fbuilder.comment@@',
+                type : 'codeeditor',
+                mode : 'text'
             }
         ]
     }

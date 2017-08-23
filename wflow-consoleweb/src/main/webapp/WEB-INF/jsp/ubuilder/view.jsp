@@ -1,3 +1,4 @@
+<%@page import="org.joget.apps.userview.service.UserviewUtil"%>
 <%@page import="org.joget.apps.userview.model.UserviewMenu"%>
 <%@page import="org.joget.apps.app.service.AppUtil"%>
 <%@page import="org.springframework.util.StopWatch"%>
@@ -5,6 +6,7 @@
 <%@ page import="org.joget.workflow.util.WorkflowUtil"%>
 <%@ page import="org.joget.apps.app.service.MobileUtil"%>
 <%@ page import="org.joget.apps.app.service.AppUtil"%>
+<%@ page import="org.joget.apps.userview.model.Userview"%>
 <%@ page contentType="text/html" pageEncoding="utf-8"%>
 
 <%
@@ -12,7 +14,7 @@ if (!MobileUtil.isMobileDisabled() && MobileUtil.isMobileUserAgent(request)) {
     pageContext.setAttribute("mobileUserAgent", Boolean.TRUE);
 }
 %>
-<c:set var="mobileViewDisabled" value="${userview.setting.properties.mobileViewDisabled}"/>
+<c:set var="mobileViewDisabled" value="${userview.setting.theme.mobileViewDisabled}"/>
 <c:if test="${mobileUserAgent && !mobileViewDisabled && (empty cookie['desktopSite'].value || cookie['desktopSite'].value != 'true')}">
     <c:redirect url="/web/mobile/${appId}/${userview.properties.id}/${key}"/>
 </c:if>
@@ -24,14 +26,19 @@ if (!MobileUtil.isMobileDisabled() && MobileUtil.isMobileUserAgent(request)) {
     StopWatch sw = new StopWatch(request.getRequestURI());
     sw.start("userview");
 %>
+<% response.setHeader("P3P", "CP=\"This is not a P3P policy\""); %>
 
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
     "http://www.w3.org/TR/html4/loose.dtd">
+
 <c:set var="qs"><ui:decodeurl value="${queryString}"/></c:set>
 <c:if test="${empty menuId && !empty userview.properties.homeMenuId}">
     <c:set var="homeRedirectUrl" scope="request" value="/web/"/>
     <c:if test="${embed}">
         <c:set var="homeRedirectUrl" scope="request" value="${homeRedirectUrl}embed/"/>
+    </c:if>
+    <c:if test="${empty key}">
+        <c:set var="key" scope="request" value="<%= Userview.USERVIEW_KEY_EMPTY_VALUE %>"/>
     </c:if>
     <c:set var="homeRedirectUrl" scope="request" value="${homeRedirectUrl}userview/${appId}/${userview.properties.id}/${key}/${userview.properties.homeMenuId}"/>
     <c:redirect url="${homeRedirectUrl}?${qs}"/>
@@ -53,13 +60,20 @@ if (!MobileUtil.isMobileDisabled() && MobileUtil.isMobileUserAgent(request)) {
             <c:set var="redirectUrl" scope="request" value="${redirectUrl}${key}"/>
         </c:when>
         <c:otherwise>
-            <c:set var="redirectUrl" scope="request" value="${redirectUrl}______"/>
-        </c:otherwise>
+            <c:set var="key" scope="request" value="<%= Userview.USERVIEW_KEY_EMPTY_VALUE %>"/>
+            <c:if test="${!empty menuId}">
+                <c:set var="redirectUrl" scope="request" value="${redirectUrl}${key}"/>
+            </c:if>    
+        </c:otherwise>    
     </c:choose>
     <c:if test="${!empty menuId}">
         <c:set var="redirectUrl" scope="request" value="${redirectUrl}/${menuId}"/>
     </c:if>
     <c:redirect url="${redirectUrl}?${qs}"/>
+</c:if>
+
+<c:if test="${empty key}">
+    <c:set var="key" scope="request" value="<%= Userview.USERVIEW_KEY_EMPTY_VALUE %>"/>
 </c:if>
 
 <c:set var="bodyId" scope="request" value=""/>
@@ -92,17 +106,11 @@ if (!MobileUtil.isMobileDisabled() && MobileUtil.isMobileUserAgent(request)) {
                 <a href="${pageContext.request.contextPath}/web/console/app/${appId}/${appVersion}/userview/builder/${userview.properties.id}?menuId=${userview.current.properties.id}" target="_blank"><i class="icon-edit"></i> <fmt:message key="adminBar.label.page"/>: <c:out value="${userview.current.properties.label}"/></a>
             </div>            
             </c:if>
-            <c:set var="properties" scope="request" value="${userview.current.properties}"/>
-            <c:set var="requestParameters" scope="request" value="${userview.current.requestParameters}"/>
-            <c:set var="readyJspPage" value="${userview.current.readyJspPage}"/>
-            <c:choose>
-                <c:when test="${!empty readyJspPage}">
-                    <jsp:include page="../${readyJspPage}" flush="true"/>
-                </c:when>
-                <c:otherwise>
-                    ${userview.current.readyRenderPage}
-                </c:otherwise>
-            </c:choose>
+            <c:set var="currentPage" value="${userview.current}"/>
+            <% 
+            UserviewMenu menu = (UserviewMenu)pageContext.findAttribute("currentPage");
+            out.print(UserviewUtil.getUserviewMenuHtml(menu));
+            %>
         </c:when>
         <c:otherwise>
             <h3><fmt:message key="ubuilder.pageNotFound"/></h3>
@@ -128,7 +136,7 @@ if (!MobileUtil.isMobileDisabled() && MobileUtil.isMobileUserAgent(request)) {
 <c:choose>
 <c:when test="${!empty alertMessageValue}">
     <script>
-        alert("${alertMessageValue}");
+        alert("<ui:escape value="${alertMessageValue}" format="javascript"/>");
     <c:if test="${!empty redirectUrlValue}">
         <c:if test="${redirectParentValue}">parent.</c:if>location.href = "${redirectUrlValue}";
     </c:if>
@@ -159,7 +167,7 @@ if (!MobileUtil.isMobileDisabled() && MobileUtil.isMobileUserAgent(request)) {
 </c:when>
 </c:choose>
 </c:catch>
-    
+
 <html>
     <head>
         <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
@@ -184,7 +192,7 @@ if (!MobileUtil.isMobileDisabled() && MobileUtil.isMobileUserAgent(request)) {
         
         <script type="text/javascript">
             function userviewPrint(){
-                $('head').append('<link id="userview_print_css" rel="stylesheet" href="${pageContext.request.contextPath}/css/userview_print.css" type="text/css" media="print"/>');
+                $('head').append('<link id="userview_print_css" rel="stylesheet" href="${pageContext.request.contextPath}/wro/userview_print.min.css" type="text/css" media="print"/>');
                 $('body').addClass("userview_print");
                 setTimeout("do_print()", 1000); 
             }
@@ -201,7 +209,7 @@ if (!MobileUtil.isMobileDisabled() && MobileUtil.isMobileUserAgent(request)) {
             UI.userview_id = '${userview.properties.id}';
         </script>
 
-        <link href="${pageContext.request.contextPath}/css/userview.css?build=<fmt:message key="build.number"/>" rel="stylesheet" type="text/css" />
+        <link href="${pageContext.request.contextPath}/wro/userview.min.css?build=<fmt:message key="build.number"/>" rel="stylesheet" type="text/css" />
         <link rel="shortcut icon" href="${pageContext.request.contextPath}/images/favicon_uv.ico"/>
         <style type="text/css">
             ${userview.setting.theme.css}
@@ -319,7 +327,6 @@ if (!MobileUtil.isMobileDisabled() && MobileUtil.isMobileUserAgent(request)) {
                         </div>
                         </c:if>
                         <div id="content">
-                            
                             <c:if test="${!empty userview.setting.theme.beforeContent}">
                                 ${userview.setting.theme.beforeContent}
                             </c:if>
@@ -348,12 +355,21 @@ if (!MobileUtil.isMobileDisabled() && MobileUtil.isMobileUserAgent(request)) {
 
             </div>
         </div>
-        <script type="text/javascript">
-            HelpGuide.base = "${pageContext.request.contextPath}"
-            HelpGuide.attachTo = "#header";
-            HelpGuide.key = "help.web.userview.${appId}.${userview.properties.id}.${bodyId}";
-            HelpGuide.show();
-        </script>
+        <c:if test="${empty userview.setting.theme.properties.disableHelpGuide || userview.setting.theme.properties.disableHelpGuide ne 'true'}">
+            <script type="text/javascript">
+                HelpGuide.base = "${pageContext.request.contextPath}"
+                HelpGuide.attachTo = "#header";
+                HelpGuide.key = "help.web.userview.${appId}.${userview.properties.id}.${bodyId}";
+                HelpGuide.show();
+            </script>
+        </c:if>    
+            
+        <c:if test="${!empty userview.setting.properties.tempDisablePermissionChecking}">
+            <c:if test="${userview.setting.properties.tempDisablePermissionChecking eq 'true'}">
+                <!--[if IE]><div id="preview-label" class="ie testing"><a onclick="$('#preview-label').remove()">x</a> <fmt:message key="ubuilder.permissionDisabled"/></div><![endif]-->
+                <!--[if !IE]><!--><div id="preview-label" class="testing"><a onclick="$('#preview-label').remove()">x</a> <fmt:message key="ubuilder.permissionDisabled"/></div><!--<![endif]-->               
+            </c:if>
+        </c:if>    
 
         <%= AppUtil.getSystemAlert() %>   
         
@@ -366,8 +382,9 @@ if (!MobileUtil.isMobileDisabled() && MobileUtil.isMobileUserAgent(request)) {
         
         <jsp:include page="/WEB-INF/jsp/console/apps/adminBar.jsp" flush="true">
             <jsp:param name="appId" value="${appId}"/>
+            <jsp:param name="appVersion" value="${appVersion}"/>
             <jsp:param name="userviewId" value="${userview.properties.id}"/>
-        </jsp:include>
+        </jsp:include>    
     </body>
     
 </html>

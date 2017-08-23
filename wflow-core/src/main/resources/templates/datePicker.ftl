@@ -1,10 +1,29 @@
+<style>
+.close-icon:after {
+    content: "x";
+    width: 16px;
+    height: 16px;
+    position: absolute;
+    text-align: center;
+    line-height: 15px;
+    margin-left: 10px;
+    top: 10px;
+    background-color: #FA9595;
+    border-radius: 50%;
+    color: white;
+    font-size: 15px;
+    box-shadow: 0 0 2px #E50F0F;
+    cursor: pointer;
+}
+</style>
+
 <div class="form-cell" ${elementMetaData!}>
 <#if element.properties.readonly! != 'true'>
     <#if !(request.getAttribute("org.joget.apps.form.lib.DatePicker_EDITABLE")??) >
-        <script type="text/javascript" src="${request.contextPath}/plugin/org.joget.apps.form.lib.DatePicker/js/jquery.custom.datepicker.js"></script>
         <#if request.getAttribute("currentLocale")!?starts_with("zh") >
             <script type="text/javascript" src="${request.contextPath}/plugin/org.joget.apps.form.lib.DatePicker/js/jquery.ui.datepicker-zh-CN.js"></script>
         </#if>
+        <script type="text/javascript" src="${request.contextPath}/plugin/org.joget.apps.form.lib.DatePicker/js/jquery.placeholder.min.js"></script>
     </#if>
 <script type="text/javascript">
     $(document).ready(function() {
@@ -38,9 +57,6 @@
         <span>${value!?html}</span>
         <input id="${elementParamName!}" name="${elementParamName!}" type="hidden" value="${value!?html}" />
     <#else>
-        <#if (element.properties.allowManual! == 'true')>
-            <script type="text/javascript" src="${request.contextPath}/plugin/org.joget.apps.form.lib.DatePicker/js/jquery.placeholder.min.js"></script>
-        </#if>
-        <input id="${elementParamName!}_${element.properties.elementUniqueKey!}" name="${elementParamName!}" type="text" size="${element.properties.size!}" value="${value!?html}" class="${elementParamName!} <#if error??>form-error-cell</#if>" <#if (element.properties.allowManual! != 'true' || element.properties.readonly! == 'true')>readonly</#if> <#if (element.properties.allowManual! == 'true')>placeholder="${displayFormat!?html}"</#if> />
+        <input id="${elementParamName!}_${element.properties.elementUniqueKey!}" name="${elementParamName!}" type="text" size="${element.properties.size!}" value="${value!?html}" class="${elementParamName!} <#if error??>form-error-cell</#if>" <#if (element.properties.allowManual! != 'true' || element.properties.readonly! == 'true')>readonly</#if> placeholder="<#if (element.properties.placeholder! != '')>${element.properties.placeholder}<#else>${displayFormat!?html}</#if>" />
     </#if>
 </div>

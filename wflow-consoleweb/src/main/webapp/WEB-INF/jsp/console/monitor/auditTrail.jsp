@@ -3,7 +3,7 @@
 
 <div id="nav">
     <div id="nav-title">
-
+        <p><i class="icon-dashboard"></i> <fmt:message key='console.header.menu.label.monitor'/></p>
     </div>
     <div id="nav-body">
         <ul id="nav-list">
@@ -17,13 +17,13 @@
     <div id="main-action">
     </div>
     <div id="main-body">
-
+        
         <div id="main-body-content">
             <ui:jsontable url="${pageContext.request.contextPath}/web/json/workflow/audittrail/list?${pageContext.request.queryString}"
                        var="JsonDataTable"
                        divToUpdate="auditTrailList"
                        jsonData="data"
-                       rowsPerPage="10"
+                       rowsPerPage="15"
                        width="100%"
                        sort="timestamp"
                        desc="true"
@@ -31,6 +31,7 @@
                        hrefParam="id"
                        hrefQuery="false"
                        hrefDialog="false"
+                       searchItems="search|Username"
                        fields="['username', 'clazz','method','message','timestamp']"
                        column1="{key: 'timestamp', label: 'console.monitoring.audittrail.label.timestamp', sortable: true}"
                        column2="{key: 'username', label: 'console.monitoring.audittrail.label.username', sortable: true}"
@@ -43,6 +44,9 @@
 </div>
 
 <script>
+    $(document).ready(function(){
+        $('#JsonDataTable_searchTerm').hide();
+    });
     Template.init("#menu-monitor", "#nav-monitor-audit");
 </script>
 

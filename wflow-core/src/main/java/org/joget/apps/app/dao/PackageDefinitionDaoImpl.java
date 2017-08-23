@@ -5,12 +5,13 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import org.hibernate.Query;
+import org.hibernate.Session;
 import org.joget.apps.app.model.AppDefinition;
 import org.joget.apps.app.model.PackageActivityForm;
 import org.joget.apps.app.model.PackageActivityPlugin;
 import org.joget.apps.app.model.PackageDefinition;
 import org.joget.apps.app.model.PackageParticipant;
-import org.joget.apps.app.service.AppServiceImpl;
 import org.joget.apps.app.service.AppUtil;
 import org.joget.commons.util.LogUtil;
 import org.joget.workflow.model.WorkflowActivity;
@@ -193,7 +194,7 @@ public class PackageDefinitionDaoImpl extends AbstractVersionedObjectDao<Package
                 }
             }
         } catch (Exception e) {
-            LogUtil.error(AppServiceImpl.class.getName(), e, "");
+            LogUtil.error(PackageDefinitionDaoImpl.class.getName(), e, "");
         }
                 
         packageDef.setPackageActivityFormMap(packageActivityFormMap);
@@ -284,5 +285,15 @@ public class PackageDefinitionDaoImpl extends AbstractVersionedObjectDao<Package
         processDefId = WorkflowUtil.getProcessDefIdWithoutVersion(processDefId);
         packageDef.removePackageParticipant(processDefId, participantId);
         saveOrUpdate(packageDef);
+    }
+    
+    public Collection<Long> getPackageVersions(String packageId) {
+        Session session = findSession();
+        String query = "SELECT e.version FROM " + ENTITY_NAME + " e WHERE e.id = ?";
+
+        Query q = session.createQuery(query);
+        q.setParameter(0, packageId);
+
+        return (Collection<Long>) q.list();
     }
 }

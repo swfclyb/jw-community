@@ -14,13 +14,14 @@
         <title><c:out value="${title}"/></title>
 
         <jsp:include page="/WEB-INF/jsp/includes/scripts.jsp" />
-        <jsp:include page="/WEB-INF/jsp/includes/css.jsp" />
         <jsp:include page="/WEB-INF/jsp/includes/rtl.jsp" />
+        <link rel="shortcut icon" href="${pageContext.request.contextPath}/images/favicon.ico"/>
+        <link rel="stylesheet" type="text/css" href="${pageContext.request.contextPath}/js/font-awesome/css/font-awesome.min.css">
+        <link rel="stylesheet" type="text/css" href="${pageContext.request.contextPath}/css/v5.css?build=<fmt:message key="build.number"/>">
+        <link rel="stylesheet" type="text/css" href="${pageContext.request.contextPath}/css/console_custom.css?build=<fmt:message key="build.number"/>">
         
         <c:if test="${!empty userviewThemeCss}">
-            <style type="text/css">
                 ${userviewThemeCss}
-            </style>
         </c:if>
         <script>
             $(function() {
@@ -34,6 +35,9 @@
             <c:if test="${!empty param.__a_}">
                 UI.userview_app_id = '<c:out value="${param.__a_}"/>';
                 UI.userview_id = '<c:out value="${param.__u_}"/>';
+                $(document).ready(function() {
+                    UI.initThemeParams();
+                });
             </c:if>
         </script>
     </head>

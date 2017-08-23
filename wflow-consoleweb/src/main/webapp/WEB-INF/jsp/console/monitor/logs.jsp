@@ -7,7 +7,7 @@
 
 <div id="nav">
     <div id="nav-title">
-
+        <p><i class="icon-dashboard"></i> <fmt:message key='console.header.menu.label.monitor'/></p>
     </div>
     <div id="nav-body">
         <ul id="nav-list">
@@ -27,7 +27,7 @@
                        var="JsonDataTable"
                        divToUpdate="logsList"
                        jsonData="data"
-                       rowsPerPage="20"
+                       rowsPerPage="15"
                        width="100%"
                        href="${pageContext.request.contextPath}/web/console/monitor/log/"
                        hrefDialogWindowName="_blank"

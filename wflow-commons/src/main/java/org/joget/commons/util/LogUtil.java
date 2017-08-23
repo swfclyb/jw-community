@@ -2,34 +2,116 @@ package org.joget.commons.util;
 
 import java.io.File;
 import java.net.URLDecoder;
+import java.text.Normalizer;
+import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+/**
+ * Utility methods to log message to log file
+ * 
+ */
 public class LogUtil {
-
+    
+    protected static Log getLog(String className) {
+        return LogFactory.getLog(className);
+    }
+    
+    /**
+     * Log message with logger level is info
+     * @param className
+     * @param message 
+     */
     public static void info(String className, String message) {
+        Log log = getLog(className);
+        
         String clean = (message != null) ? message.replace( '\n', '_' ).replace( '\r', '_' ) : null;
-        LogFactory.getLog(className).info(getHost() + clean);
+        log.info(getHost() + clean);
     }
 
+    /**
+     * Log message with logger level is debug
+     * @param className
+     * @param message 
+     */
     public static void debug(String className, String message) {
+        Log log = getLog(className);
+        
         String clean = (message != null) ? message.replace( '\n', '_' ).replace( '\r', '_' ) : null;
-        LogFactory.getLog(className).debug(getHost() + clean);
+        log.debug(getHost() + clean);
     }
 
+    /**
+     * Log message with logger level is warn
+     * @param className
+     * @param message 
+     */
     public static void warn(String className, String message) {
+        Log log = getLog(className);
+        
         String clean = (message != null) ? message.replace( '\n', '_' ).replace( '\r', '_' ) : null;
-        LogFactory.getLog(className).warn(getHost() + clean);
+        log.warn(getHost() + clean);
     }
 
+    /**
+     * Log exception message with logger level is error
+     * @param className
+     * @param message 
+     */
     public static void error(String className, Throwable e, String message) {
+        Log log = getLog(className);
+        
         if (message != null && message.trim().length() > 0) {
             String clean = message.replace( '\n', '_' ).replace( '\r', '_' );
-            LogFactory.getLog(className).error(getHost() + clean, e);
+            log.error(getHost() + clean, e);
         } else {
-            LogFactory.getLog(className).error(getHost() + e.toString(), e);
+            log.error(getHost() + e.toString(), e);
         }
     }
     
+    /**
+     * Check is the info log is enabled
+     * @param className
+     * @return 
+     */
+    public static boolean isInfoEnabled(String className) {
+        Log log = getLog(className);
+        return log.isInfoEnabled();
+    }
+    
+    /**
+     * Check is the debug log is enabled
+     * @param className
+     * @return 
+     */
+    public static boolean isDebugEnabled(String className) {
+        Log log = getLog(className);
+        return log.isDebugEnabled();
+    }
+    
+    /**
+     * Check is the warn log is enabled
+     * @param className
+     * @return 
+     */
+    public static boolean isWarnEnabled(String className) {
+        Log log = getLog(className);
+        return log.isWarnEnabled();
+    }
+    
+    /**
+     * Check is the error log is enabled
+     * @param className
+     * @return 
+     */
+    public static boolean isErrorEnabled(String className) {
+        Log log = getLog(className);
+        return log.isErrorEnabled();
+    }
+    
+    /**
+     * Check is the current installation is deploy in Tomcat server
+     * @return 
+     */
     public static Boolean isDeployInTomcat() {
         if (System.getProperty("catalina.base") != null) {
             return true;
@@ -37,6 +119,10 @@ public class LogUtil {
         return false;
     }
     
+    /**
+     * Convenient method to retrieve all tomcat log files 
+     * @return 
+     */
     public static File[] tomcatLogFiles() {
         // Directory path here
         String path = System.getProperty("catalina.base"); 
@@ -48,7 +134,17 @@ public class LogUtil {
         return null;
     }
     
+    /**
+     * Convenient method to retrieve all tomcat log file by file name 
+     * @return 
+     */
     public static File getTomcatLogFile(String filename) {
+        // validate input
+        String normalizedFileName = Normalizer.normalize(filename, Normalizer.Form.NFKC);
+        if (normalizedFileName.contains("../") || normalizedFileName.contains("..\\")) {
+            throw new SecurityException("Invalid filename " + normalizedFileName);
+        }
+        
         String path = System.getProperty("catalina.base");
         if (path != null) {
             try {

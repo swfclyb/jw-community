@@ -22,10 +22,37 @@
             </#list>
         <#if !element.parent??>
         </form>
+        <script>
+            $(function(){
+                $("#section-actions button, #section-actions input").click(function(){
+                    $.blockUI({ css: { 
+                        border: 'none', 
+                        padding: '15px', 
+                        backgroundColor: '#000', 
+                        '-webkit-border-radius': '10px', 
+                        '-moz-border-radius': '10px', 
+                        opacity: .3, 
+                        color: '#fff' 
+                    }, message : "<h1>@@form.form.message.wait@@</h1>" }); 
+                    return true;
+                });
+                if (!UI.isMobileUserAgent()) {
+                    $('form').find("input:visible, select:visible, textarea:visible, label[tabindex]:visible").first().focus();
+                }
+                $('form').on('keyup', "label[tabindex]", function(e) {
+                    var keyCode = e.keyCode || e.which;
+                    if (keyCode === 13) { 
+                        e.preventDefault();
+                        $(this).find("input").trigger("click");
+                        return false;
+                    }
+                });
+            });
+        </script>
         </#if>
     <#else>
         <h3>@@form.form.message.recordNotFound@@</h3>
-    </#if>
+    </#if>    
 <#else>
     <#if element.properties.noPermissionMessage?? && element.properties.noPermissionMessage! != "">
         <h3>${element.properties.noPermissionMessage!}</h3>

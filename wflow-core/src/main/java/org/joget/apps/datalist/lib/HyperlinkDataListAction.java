@@ -23,7 +23,7 @@ public class HyperlinkDataListAction extends DataListActionDefault {
     }
 
     public String getVersion() {
-        return "3.0.0";
+        return "5.0.0";
     }
 
     public String getDescription() {
@@ -47,6 +47,9 @@ public class HyperlinkDataListAction extends DataListActionDefault {
     }
 
     public String getTarget() {
+        if ("iframe".equals(getPropertyString("target"))) {
+            return getPropertyString("iframename");
+        }
         return getPropertyString("target");
     }
 

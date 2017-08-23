@@ -26,7 +26,7 @@ public class CustomHTML extends Element implements FormBuilderPaletteElement, Fo
 
     @Override
     public String getVersion() {
-        return "3.0.0";
+        return "5.0.0";
     }
 
     @Override
@@ -118,7 +118,9 @@ public class CustomHTML extends Element implements FormBuilderPaletteElement, Fo
                 }
 
                 // set value into Properties and FormRowSet object
-                result.setProperty(name, delimitedValue);
+                if (result != null) {
+                    result.setProperty(name, delimitedValue);
+                }
             }
         }
         return rowSet;
@@ -280,8 +282,18 @@ public class CustomHTML extends Element implements FormBuilderPaletteElement, Fo
                     customHTML = customHTML.replaceFirst(StringUtil.escapeRegex(selectString), StringUtil.escapeRegex(newSelectString));
                 }
             }
+            
+            //remove scripting in builder move
+            if (dataModel.containsKey("elementMetaData") && !dataModel.get("elementMetaData").toString().isEmpty()) {
+                Pattern pattern = Pattern.compile("<script[^>]*>.*?</script>", Pattern.DOTALL);
+                Matcher matcher = pattern.matcher(customHTML);
+                while (matcher.find()) {
+                    String selectString = matcher.group(0);
+                    customHTML = customHTML.replaceFirst(StringUtil.escapeRegex(selectString), "");
+                }
+            }
         }
-
+        
         dataModel.put("value", customHTML);
 
         String html = FormUtil.generateElementHtml(this, formData, template, dataModel);

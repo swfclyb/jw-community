@@ -194,11 +194,17 @@ public class JaWEManager {
                 fis = new FileInputStream(configFile);
                 Properties props = new Properties();
                 props.load(fis);
-                fis.close();
                 Utils.adjustProperties(properties, props);
             } catch (Exception ex) {
                 throw new Error("Something went wrong while reading of configuration from the file!!!",
                         ex);
+            } finally {
+                if (fis != null) {
+                    try {
+                        fis.close();
+                    } catch(IOException e) {
+                    }
+                }
             }
         } else {
             throw new Error(jaweManager.getName() + " needs to be configured properly - configuration file " + configFile + " does not exist!!!");
@@ -437,7 +443,7 @@ public class JaWEManager {
             Constructor c = Class.forName(lmClass).getConstructor(new Class[]{});
             loggingManager = (LoggingManager) c.newInstance(new Object[]{});
             loggingManager.info("JaWEManager -> Working with '" + lmClass + "' implementation of Logging Manager");
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             String msg = "JaweManager -> Problems while instantiating Logging Manager '" + lmClass + "' !";
             System.err.println(msg);
             throw new Error(msg, ex);
@@ -447,7 +453,7 @@ public class JaWEManager {
             Constructor c = Class.forName(xpdlutClass).getConstructor(new Class[]{});
             xpdlUtils = (XPDLUtils) c.newInstance(new Object[]{});
             loggingManager.info("JaWEManager -> Working with '" + xpdlutClass + "' implementation of XPDLUtils");
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             xpdlUtils = new XPDLUtils();
             if (JaWE.getJaWEVersion() != JaWE.COMMUNITY_VERSION) {
                 String msg = "JaweManager -> Problems while instantiating XPDL Utils '" + xpdlutClass + "' - using default implementation!";
@@ -462,7 +468,7 @@ public class JaWEManager {
             Constructor c = Class.forName(xpdlrhClass).getConstructor(new Class[]{});
             xpdlRHandler = (XPDLRepositoryHandler) c.newInstance(new Object[]{});
             loggingManager.info("JaWEManager -> Working with '" + xpdlrhClass + "' implementation of XPDL Repository Handler");
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             xpdlRHandler = new XPDLRepHandler();
             if (JaWE.getJaWEVersion() != JaWE.COMMUNITY_VERSION) {
                 String msg = "JaweManager -> Problems while instantiating XPDL Repository Handler class '" + xpdlrhClass + "' - using default implementation!";
@@ -488,7 +494,7 @@ public class JaWEManager {
                     });
             jaweController.init();
             loggingManager.info("JaWEManager -> Working with '" + jcClass + "' implementation of JaWE Controller");
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             jaweController = new JaWEController(new ControllerSettings());
             jaweController.init();
             if (JaWE.getJaWEVersion() != JaWE.COMMUNITY_VERSION) {
@@ -531,7 +537,7 @@ public class JaWEManager {
                         ts
                     });
             loggingManager.info("JaWEManager -> Working with '" + thClass + "' implementation of Transition Handler");
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             transitionHandler = new TransitionHandler();
             if (JaWE.getJaWEVersion() != JaWE.COMMUNITY_VERSION) {
                 String msg = "JaweManager -> Problems while instantiating Transition Handler class '" + thClass + "' - using default implementation!";
@@ -552,7 +558,7 @@ public class JaWEManager {
                         is
                     });
             loggingManager.info("JaWEManager -> Working with '" + idfClass + "' implementation of Id Factory");
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             idFactory = new IdFactory();
             if (JaWE.getJaWEVersion() != JaWE.COMMUNITY_VERSION) {
                 String msg = "JaweManager -> Problems while instantiating Id Factory class '" + idfClass + "' - using default implementation!";
@@ -573,7 +579,7 @@ public class JaWEManager {
                         os
                     });
             loggingManager.info("JaWEManager -> Working with '" + xpdlofClass + "' implementation of XPDL Object Factory");
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             xpdlObjectFactory = new XPDLObjectFactory();
             if (JaWE.getJaWEVersion() != JaWE.COMMUNITY_VERSION) {
                 String msg = "JaweManager -> Problems while instantiating XPDL Object Factory class '" + xpdlofClass + "' - using default implementation!";
@@ -586,7 +592,7 @@ public class JaWEManager {
         try {
             panelValidator = (StandardPanelValidator) cl.loadClass(pnlvClass).newInstance();
             loggingManager.info("JaWEManager -> Working with '" + pnlvClass + "' implementation of Panel Validator");
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             panelValidator = new StandardPanelValidator();
             if (JaWE.getJaWEVersion() != JaWE.COMMUNITY_VERSION) {
                 String msg = "JaweManager -> Problems while instantiating Panel Validator class '" + pnlvClass + "' - using default implementation!";
@@ -608,7 +614,7 @@ public class JaWEManager {
                         xvs.getProperties()
                     });
             loggingManager.info("JaWEManager -> Working with '" + xpdlvClass + "' implementation of XPDL Validator");
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             XPDLValidatorSettings vs = new XPDLValidatorSettings();
             vs.init(null);
             xpdlValidator = new StandardPackageValidator(vs.getProperties());
@@ -681,7 +687,7 @@ public class JaWEManager {
                         ps
                     });
             loggingManager.info("JaWEManager -> Working with '" + xpdleeClass + "' implementation of XPDL Element Editor ");
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             //CUSTOM
             try {
                 xpdlElementEditor = new NewStandardXPDLElementEditor(new NewStandardXPDLEditorSettings());
@@ -708,7 +714,7 @@ public class JaWEManager {
                         ts
                     });
             loggingManager.info("JaWEManager -> Working with '" + teClass + "' implementation of Table Editor ");
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             //CUSTOM
             try {
                 tableEditor = new TableEditor(new TableEditorSettings());
@@ -750,7 +756,7 @@ public class JaWEManager {
             componentManager.setPropertyMgr(propertyMgr);
             componentManager.init();
             loggingManager.info("JaWEManager -> Working with '" + cmClass + "' implementation of Component Manager");
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             componentManager = new ComponentManager();
             componentManager.init();
             if (JaWE.getJaWEVersion() != JaWE.COMMUNITY_VERSION) {
@@ -842,7 +848,7 @@ public class JaWEManager {
             xpdlh = (XPDLHandler) c.newInstance(new Object[]{
                         hs
                     });
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             String msg = "JaweManager -> Problems while instantiating XPDL Handler class '" + xpdlhClass + "' - using default!";
             xpdlh = new XPDLHandler();
             xpdlh.setXPDLRepositoryHandler(xpdlRHandler);
@@ -889,7 +895,7 @@ public class JaWEManager {
             nf.setCurrentTheme(nt);
             UIManager.setLookAndFeel(nf);
             customUI = true;
-        } catch (Throwable t) {
+        } catch (Exception t) {
             t.printStackTrace();
         }
         if (!customUI) {
@@ -1139,9 +1145,17 @@ public class JaWEManager {
     protected static void prependBasicConfiguration() throws FileNotFoundException, IOException {
         String filename = JaWEConstants.JAWE_USER_HOME + "/" + JaWEConstants.JAWE_BASIC_PROPERTYFILE_NAME;
         if (new File(filename).isFile()) {
-            Properties props = new Properties(properties);
-            props.load(new FileInputStream(filename));
-            properties = props;
+            InputStream in = null; 
+            try {
+                in = new FileInputStream(filename);
+                Properties props = new Properties(properties);
+                props.load(in);
+                properties = props;
+            } finally {
+                if (in != null) {
+                    in.close();
+                }
+            }
         }
     }
 
@@ -1149,10 +1163,18 @@ public class JaWEManager {
         String filename = JaWEConstants.JAWE_USER_HOME + "/" + JaWEConstants.JAWE_AUTOSAVE_PROPERTYFILE_NAME;
         Properties props = new Properties(properties);
         if (new File(filename).isFile()) {
-            props.load(new FileInputStream(filename));
-            properties = props;
-            properties.setProperty("test", "value");
-            hasAutosave = true;
+            InputStream in = null; 
+            try {
+                in = new FileInputStream(filename);
+                props.load(in);
+                properties = props;
+                properties.setProperty("test", "value");
+                hasAutosave = true;
+            } finally {
+                if (in != null) {
+                    in.close();
+                }
+            }
         }
     }
 
@@ -1173,6 +1195,7 @@ public class JaWEManager {
         if (!hasAutosave) {
             return;
         }
+        FileOutputStream out = null;
         try {
             // creating USER_HOME/.JaWE directory if it doesn't exist
             File ujdir = new File(JaWEConstants.JAWE_USER_HOME);
@@ -1184,10 +1207,18 @@ public class JaWEManager {
             }
             String cfn = JaWEConstants.JAWE_USER_HOME + "/" + JaWEConstants.JAWE_AUTOSAVE_PROPERTYFILE_NAME;
 
-            properties.store(new FileOutputStream(cfn), "Autosaved configuration, take precedence over " + JaWEConstants.JAWE_BASIC_PROPERTYFILE_NAME + " for conflict");
+            out = new FileOutputStream(cfn);
+            properties.store(out, "Autosaved configuration, take precedence over " + JaWEConstants.JAWE_BASIC_PROPERTYFILE_NAME + " for conflict");
 
         } catch (Exception ex) {
             ex.printStackTrace();
+        } finally {
+            if (out != null) {
+                try {
+                    out.close();
+                } catch (IOException ex) {
+                }
+            }
         }
     }
 }

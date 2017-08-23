@@ -1,6 +1,13 @@
 <%@ include file="/WEB-INF/jsp/includes/taglibs.jsp" %>
 
-<commons:header />
+<c:set var="title"><fmt:message key="adminBar.label.app"/>: ${appDefinition.name}</c:set>
+<commons:header title="${title}" />
+
+<link href="${pageContext.request.contextPath}/js/font-awesome/css/font-awesome.min.css" rel="stylesheet" />
+<link href="${pageContext.request.contextPath}/js/boxy/stylesheets/boxy.css" rel="stylesheet" type="text/css" />
+<link href="${pageContext.request.contextPath}/js/at/usages.css" rel="stylesheet" type="text/css" />
+<script type='text/javascript' src='${pageContext.request.contextPath}/js/boxy/javascripts/jquery.boxy.js'></script>
+<script type='text/javascript' src="${pageContext.request.contextPath}/js/at/usages.js"></script>
 
 <div id="nav">
     <div id="nav-title">
@@ -21,7 +28,10 @@
     </div>
     <div id="main-body">
 
-        <div id='nv-refresh'><a href='#' onclick='return refreshNavigator()'><i class='icon-refresh'></i> <fmt:message key="general.method.label.refresh"/></a></div>        
+        <div id='nv-refresh'>
+            <a href="#" id="toggleInfo" onclick="toggleInfo();return false"><i class='icon-th-list'></i></a>&nbsp;&nbsp;
+            <a href='#' onclick='return refreshNavigator()'><i class='icon-refresh'></i> <fmt:message key="general.method.label.refresh"/></a>
+        </div>
         <div id="nv-container">
         <jsp:include page="/web/console/app/${appId}/${appVersion}/navigator" flush="true"/>
         </div>
@@ -33,7 +43,7 @@
                     $("#nv-refresh").append(loading);
                 }
                 $.ajax({
-                    url: "${pageContext.request.contextPath}/web/console/app/${appId}/${appVersion}/navigator?hidden=true&_=" + jQuery.now(),
+                    url: "${pageContext.request.contextPath}/web/console/app/<c:out value="${appId}"/>/${appVersion}/navigator?hidden=true&_=" + jQuery.now(),
                     success: function(data) {
                         $("#nv-container").html(data);
                     },

@@ -42,7 +42,7 @@ public class DynamicDataSourceManager {
             return false;
         } finally {
             try {
-                if (conn != null && !conn.isClosed()) {
+                if (conn != null) {
                     conn.close();
                 }
             } catch (Exception e) {
@@ -176,7 +176,8 @@ public class DynamicDataSourceManager {
             return currentProfile;
         } catch (FileNotFoundException e) {
             if (!(e.getMessage() != null && e.getMessage().contains("Too many open files"))) {
-                createDefaultProfile();
+                // As of v5, don't automatically create default profile, to allow setup on first startup
+                // createDefaultProfile();
                 LogUtil.debug(DynamicDataSourceManager.class.getName(), defaultDataSourceFilename + " not found, using default datasource");
             }
         } catch (Exception e) {
@@ -199,11 +200,17 @@ public class DynamicDataSourceManager {
         FileOutputStream fos = null;
         String defaultDataSourceFilename = determineDefaultDataSourceFilename();
         try {
-            fis = new FileInputStream(new File(defaultDataSourceFilename));
+            profileName = SecurityUtil.validateStringInput(profileName);
+            File datasourceFile = new File(defaultDataSourceFilename);
+            if (!datasourceFile.exists()) {
+                new File(FILE_PATH).mkdirs();
+                datasourceFile.createNewFile();
+            }
+            fis = new FileInputStream(datasourceFile);
             properties.load(fis);
             properties.setProperty(CURRENT_PROFILE_KEY, profileName);
 
-            fos = new FileOutputStream(new File(defaultDataSourceFilename));
+            fos = new FileOutputStream(datasourceFile);
             properties.store(fos, "");
             HostManager.setCurrentProfile(profileName);
         } catch (Exception e) {
@@ -213,6 +220,10 @@ public class DynamicDataSourceManager {
                 if (fis != null) {
                     fis.close();
                 }
+            } catch (Exception e) {
+                LogUtil.error(DynamicDataSourceManager.class.getName(), e, "");
+            }
+            try {
                 if (fos != null) {
                     fos.close();
                 }
@@ -224,6 +235,7 @@ public class DynamicDataSourceManager {
 
     public static boolean createProfile(String profileName) {
         try {
+            profileName = SecurityUtil.validateStringInput(profileName);
             File file = new File(determineFilePath(profileName));
             if (file.exists()) {
                 return false;
@@ -239,6 +251,7 @@ public class DynamicDataSourceManager {
 
     public static boolean deleteProfile(String profileName) {
         try {
+            profileName = SecurityUtil.validateStringInput(profileName);
             File file = new File(determineFilePath(profileName));
             file.delete();
         } catch (Exception e) {
@@ -266,6 +279,10 @@ public class DynamicDataSourceManager {
                 if (fis != null) {
                     fis.close();
                 }
+            } catch (Exception e) {
+                LogUtil.error(DynamicDataSourceManager.class.getName(), e, "");
+            }
+            try {
                 if (fos != null) {
                     fos.close();
                 }

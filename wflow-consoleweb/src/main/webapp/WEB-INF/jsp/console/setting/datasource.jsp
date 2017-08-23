@@ -24,7 +24,7 @@
 </style>
 <div id="nav">
     <div id="nav-title">
-
+        <p><i class="icon-cogs"></i> <fmt:message key='console.header.top.label.settings'/></p>
     </div>
     <div id="nav-body">
         <ul id="nav-list">
@@ -193,7 +193,7 @@
 
     function deleteProfile(){
         if(confirm("<fmt:message key="console.setting.datasource.label.deleteProfileConfirm"/>")) {
-            var currentProfile = '${currentProfile}';
+            var currentProfile = '<c:out value="${currentProfile}"/>';
             if($('#profileList').val() == currentProfile)
                 alert("<fmt:message key="console.setting.datasource.label.deleteProfileInvalid"/>")
             else{

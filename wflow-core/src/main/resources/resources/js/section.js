@@ -1,39 +1,75 @@
-var VisibilityMonitor = function(targetEl, controlEl, controlValue, isRegex) {
+var VisibilityMonitor = function(targetEl, data) {
     this.target = targetEl;
-    this.control = controlEl;
-    this.controlValue = controlValue;
-    this.isRegex = isRegex;
-}
+    this.rules = data['rules'];
+};
 
-VisibilityMonitor.prototype.target = null; // the target element (to be shown or hidden)
-
-VisibilityMonitor.prototype.control = null; // the control element (where value changes the target)
-
-VisibilityMonitor.prototype.controlValue = null; // the value in the control element which will trigger the change
-
-VisibilityMonitor.prototype.isRegex = null; // the flag decide control value is a regex or not
+VisibilityMonitor.prototype.rules = null; 
 
 VisibilityMonitor.prototype.init = function() {
     var thisObject = this;
     
     var targetEl = $(this.target);
-    var controlEl = $("[name=" + this.control + "]");
-    var controlVal = this.controlValue;
-    var isRegex = this.isRegex;
+    var id = $(this.target).attr("id");
     
-    $(controlEl).addClass("control-field");
+    var changeEvent = function(field) {
+        thisObject.handleChange(targetEl, thisObject.rules);
+    };
     
-    thisObject.handleChange(targetEl, controlEl, controlVal, isRegex);
+    for (var i in thisObject.rules) {
+        var field = thisObject.rules[i].field;
+        if (field !== "(" && field !== ")") {
+            var controlEl = $("[name=" + field + "]");
+            var parent = $(controlEl).closest(".subform-section");
+            if (parent.length === 0) {
+                parent = $(controlEl).closest(".form-section");
+            }
+            if (!$(parent).is(targetEl)) { // prevent it keep trigger itself
+                $(controlEl).addClass("control-field");
+            }
+            $('body').off("change."+id+"_"+field);
+            $('body').on("change."+id+"_"+field, "[name=" + field + "]", changeEvent);
+        }
+    }
     
-    controlEl.live("change", function() {
-        thisObject.handleChange(targetEl, controlEl, controlVal, isRegex);
-    });
-}
+    thisObject.handleChange(targetEl, this.rules);
+};
 
-VisibilityMonitor.prototype.handleChange = function(targetEl, controlEl, controlVal, isRegex) {
+VisibilityMonitor.prototype.handleChange = function(targetEl, rules) {
     var thisObject = this;
+    var match = false;
     
-    var match  = thisObject.checkValue(thisObject, controlEl, controlVal, isRegex);
+    try {
+        var rule = "";
+        for (var i in rules) {
+            var field = rules[i].field;
+            var join = rules[i].join;
+            var value = rules[i].value;
+            var regex = rules[i].regex;
+            var reverse = rules[i].reverse;
+            
+            if (rule !== "" && rule.substr(rule.length - 1) !== "(" && field !== ")") {
+                if (join === "or") {
+                    rule += " || ";
+                } else {
+                    rule += " && ";
+                }
+            }
+            if (field !== ")") {
+                rule += " ";
+            }
+            if (reverse !== "" && field !== ")") {
+                rule += "!";
+            }
+            if (field === "(" || field === ")" ) {
+                rule += field;
+            } else {
+                var controlEl = $("[name=" + field + "]");
+                rule += thisObject.checkValue(thisObject, controlEl, value, regex);
+            }
+        }
+        match = eval(rule);
+    } catch (err) {}
+    
     if (match) {
         targetEl.css("display", "block");
         targetEl.removeClass("section-visibility-hidden");
@@ -43,7 +79,7 @@ VisibilityMonitor.prototype.handleChange = function(targetEl, controlEl, control
         targetEl.addClass("section-visibility-hidden");
         thisObject.disableInputField(targetEl);
     }
-}
+};
 
 VisibilityMonitor.prototype.checkValue = function(thisObject, controlEl, controlValue, isRegex) {
     //get enabled input field oni
@@ -52,33 +88,38 @@ VisibilityMonitor.prototype.checkValue = function(thisObject, controlEl, control
     
     var match = false;
     if ($(controlEl).length > 0) {
-        if ($(controlEl).attr("type") == "checkbox" || $(controlEl).attr("type") == "radio") {
+        if ($(controlEl).attr("type") === "checkbox" || $(controlEl).attr("type") === "radio") {
             controlEl = $(controlEl).filter(":checked");
         } else if ($(controlEl).is("select")) {
             controlEl = $(controlEl).find("option:selected");
         }
         
-        $(controlEl).each(function() {
-            match = thisObject.isMatch($(this).val(), controlValue, isRegex);
-            if (match) {
-                return false;
-            }
-        });
+        if ($(controlEl).length > 0) {
+            $(controlEl).each(function() {
+                match = thisObject.isMatch($(this).val(), controlValue, isRegex);
+                if (match) {
+                    return false;
+                }
+            });
+        } else {
+            match = thisObject.isMatch("", controlValue, isRegex);
+        }
     }
     return match;
-}
+};
 VisibilityMonitor.prototype.isMatch = function(value, controlValue, isRegex) {
-    if (isRegex != undefined && "true" == isRegex) {
+    if (isRegex !== undefined && "true" === isRegex) {
         try {
             var regex = new RegExp(controlValue);
-            return regex.exec(value) == value;
+            var result = regex.exec(value);
+            return result.length > 0 && result[0] === value;
         } catch (err) {
             return false;
         }
     } else {
-        return value == controlValue;
+        return value === controlValue;
     }
-}
+};
 VisibilityMonitor.prototype.disableInputField = function(targetEl) {
     var thisObject = this;
     
@@ -104,13 +145,13 @@ VisibilityMonitor.prototype.disableInputField = function(targetEl) {
         } 
         if ($(this).is("[name].control-field")) {
             var n = $(this).attr("name");
-            if ($.inArray(n, names) < 0 && n != "") {
+            if ($.inArray(n, names) < 0 && n !== "") {
                 names.push(n);
             }
         }
     });
     thisObject.triggerChange(targetEl, names);
-}
+};
 VisibilityMonitor.prototype.enableInputField = function(targetEl) {
     var thisObject = this;
     
@@ -136,14 +177,15 @@ VisibilityMonitor.prototype.enableInputField = function(targetEl) {
         } 
         if ($(this).is("[name].control-field")) {
             var n = $(this).attr("name");
-            if ($.inArray(n, names) < 0 && n != "") {
+            if ($.inArray(n, names) < 0 && n !== "") {
                 names.push(n);
             }
         }
     });
     
     thisObject.triggerChange(targetEl, names);
-}
+    $(window).trigger("resize");
+};
 VisibilityMonitor.prototype.triggerChange = function(targetEl, names) {
     $.each(names, function(i){
         var temp = false;
@@ -158,4 +200,4 @@ VisibilityMonitor.prototype.triggerChange = function(targetEl, names) {
             $(newObject).remove();
         }
     });
-}
+};

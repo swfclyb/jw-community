@@ -2,14 +2,17 @@ package org.joget.apps.workflow.controller;
 
 import java.io.IOException;
 import java.io.Writer;
+import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.apache.commons.lang.StringEscapeUtils;
 import org.joget.apps.app.dao.AuditTrailDao;
 import org.joget.apps.app.model.AuditTrail;
+import org.joget.apps.app.service.AppUtil;
 import org.joget.commons.util.ResourceBundleUtil;
+import org.joget.commons.util.TimeZoneUtil;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,10 +27,20 @@ public class AuditTrialJsonController {
     private AuditTrailDao auditTrailDao;
 
     @RequestMapping("/json/workflow/audittrail/list")
-    public void auditTrailList(Writer writer, @RequestParam(value = "callback", required = false) String callback, @RequestParam(value = "dateFrom", required = false) String dateFrom, @RequestParam(value = "dateTo", required = false) String dateTo, @RequestParam(value = "sort", required = false) String sort, @RequestParam(value = "desc", required = false) Boolean desc, @RequestParam(value = "start", required = false) Integer start, @RequestParam(value = "rows", required = false) Integer rows) throws IOException, JSONException {
+    public void auditTrailList(Writer writer, @RequestParam(value = "callback", required = false) String callback,  @RequestParam(value = "search", required = false) String search, @RequestParam(value = "dateFrom", required = false) String dateFrom, @RequestParam(value = "dateTo", required = false) String dateTo, @RequestParam(value = "sort", required = false) String sort, @RequestParam(value = "desc", required = false) Boolean desc, @RequestParam(value = "start", required = false) Integer start, @RequestParam(value = "rows", required = false) Integer rows) throws IOException, JSONException {
 
         List<AuditTrail> auditTrailList;
+        String condition = "";
+        Collection<Object> args = new ArrayList<Object>();
 
+        if (search != null && !search.isEmpty()) {
+            condition = "(e.username like ? or e.clazz like ? or e.method like ? or e.message like ?)";
+            args.add("%" + search + "%");
+            args.add("%" + search + "%");
+            args.add("%" + search + "%");
+            args.add("%" + search + "%");
+        }
+        
         if (dateFrom != null && dateFrom.trim().length() > 0 && dateTo != null && dateTo.trim().length() > 0) {
             String[] dateFroms = dateFrom.split("-");
             String[] dateTos = dateTo.split("-");
@@ -38,12 +51,19 @@ public class AuditTrialJsonController {
             Calendar dateToCal = Calendar.getInstance();
             dateToCal.set(Integer.parseInt(dateTos[0]), Integer.parseInt(dateTos[1]) - 1, Integer.parseInt(dateTos[2]), 23, 59, 59);
 
-            auditTrailList = auditTrailDao.getAuditTrails("where e.timestamp >= ? and e.timestamp <= ?", new Object[]{dateFromCal.getTime(), dateToCal.getTime()}, sort, desc, start, rows);
-        } else {
-            auditTrailList = auditTrailDao.getAuditTrails(sort, desc, start, rows);
+            if (!condition.isEmpty()) {
+                condition = condition + " and ";
+            }
+            condition += "e.timestamp >= ? and e.timestamp <= ?";
+            args.add(dateFromCal.getTime());
+            args.add(dateToCal.getTime());
         }
-
-
+        
+        if (!condition.isEmpty()) {
+            condition = "where " + condition;
+        }
+        
+        auditTrailList = auditTrailDao.getAuditTrails(condition, args.toArray(), sort, desc, start, rows);
 
         JSONObject jsonObject = new JSONObject();
         for (AuditTrail auditTrail : auditTrailList) {
@@ -53,7 +73,7 @@ public class AuditTrialJsonController {
             data.put("clazz", ResourceBundleUtil.getMessage(auditTrail.getClazz(), auditTrail.getClazz()));
             data.put("method", ResourceBundleUtil.getMessage(auditTrail.getMethod(), auditTrail.getMethod()));
             data.put("message", auditTrail.getMessage());
-            data.put("timestamp", auditTrail.getTimestamp());
+            data.put("timestamp", TimeZoneUtil.convertToTimeZone(auditTrail.getTimestamp(), null, AppUtil.getAppDateFormat()));
             jsonObject.accumulate("data", data);
         }
 
@@ -76,10 +96,6 @@ public class AuditTrialJsonController {
         jsonObject.accumulate("sort", sort);
         jsonObject.accumulate("desc", desc);
 
-        if (callback != null && callback.trim().length() != 0) {
-            writer.write(StringEscapeUtils.escapeHtml(callback) + "(" + jsonObject + ");");
-        } else {
-            jsonObject.write(writer);
-        }
+        AppUtil.writeJson(writer, jsonObject, callback);
     }
 }

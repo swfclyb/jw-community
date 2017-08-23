@@ -4,7 +4,7 @@
 
 <div id="nav">
     <div id="nav-title">
-
+        <p><i class="icon-group"></i> <fmt:message key='console.header.menu.label.users'/></p>
     </div>
     <div id="nav-body">
         <ul id="nav-list">
@@ -46,7 +46,7 @@
                        var="JsonDeptDataTable"
                        divToUpdate="departmentList"
                        jsonData="data"
-                       rowsPerPage="10"
+                       rowsPerPage="15"
                        width="100%"
                        sort="name"
                        desc="false"
@@ -78,7 +78,7 @@
                        var="JsonGradeDataTable"
                        divToUpdate="gradeList"
                        jsonData="data"
-                       rowsPerPage="10"
+                       rowsPerPage="15"
                        width="100%"
                        sort="name"
                        desc="false"
@@ -130,7 +130,7 @@
                        var="JsonUserDataTable"
                        divToUpdate="userList"
                        jsonData="data"
-                       rowsPerPage="10"
+                       rowsPerPage="15"
                        width="100%"
                        sort="user.username"
                        desc="false"

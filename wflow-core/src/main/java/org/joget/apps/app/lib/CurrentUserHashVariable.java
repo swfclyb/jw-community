@@ -7,7 +7,6 @@ import org.joget.apps.app.model.DefaultHashVariablePlugin;
 import org.joget.apps.app.service.AppUtil;
 import org.joget.commons.util.LogUtil;
 import org.joget.directory.model.User;
-import org.joget.directory.model.service.DirectoryManager;
 import org.joget.workflow.model.service.WorkflowUserManager;
 import org.springframework.context.ApplicationContext;
 
@@ -38,7 +37,7 @@ public class CurrentUserHashVariable extends DefaultHashVariablePlugin {
     }
 
     public String getVersion() {
-        return "3.0.0";
+        return "5.0.0";
     }
 
     public String getDescription() {
@@ -51,8 +50,8 @@ public class CurrentUserHashVariable extends DefaultHashVariablePlugin {
         try {
             if (user == null) {
                 ApplicationContext appContext = AppUtil.getApplicationContext();
-                DirectoryManager directoryManager = (DirectoryManager) appContext.getBean("directoryManager");
-                user = directoryManager.getUserByUsername(username);
+                WorkflowUserManager workflowUserManager = (WorkflowUserManager) appContext.getBean("workflowUserManager");
+                user = workflowUserManager.getCurrentUser();
             }
             
             if (user != null) {

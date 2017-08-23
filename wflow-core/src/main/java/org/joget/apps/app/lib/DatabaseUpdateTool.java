@@ -7,7 +7,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import javax.sql.DataSource;
-import org.apache.commons.dbcp.BasicDataSourceFactory;
+import org.apache.commons.dbcp2.BasicDataSourceFactory;
 import org.joget.apps.app.service.AppUtil;
 import org.joget.commons.util.DynamicDataSourceManager;
 import org.joget.commons.util.LogUtil;
@@ -22,7 +22,7 @@ public class DatabaseUpdateTool extends DefaultApplicationPlugin {
     }
 
     public String getVersion() {
-        return "3.0.0";
+        return "5.0.0";
     }
 
     public String getDescription() {
@@ -92,11 +92,17 @@ public class DatabaseUpdateTool extends DefaultApplicationPlugin {
             boolean result = stmt.execute(sql);
             return result;
         } finally {
-            if (stmt != null) {
-                stmt.close();
+            try {
+                if (stmt != null) {
+                    stmt.close();
+                }
+            } catch(Exception e) {
             }
-            if (con != null) {
-                con.close();
+            try {
+                if (con != null) {
+                    con.close();
+                }
+            } catch(Exception e) {
             }
         }
     }

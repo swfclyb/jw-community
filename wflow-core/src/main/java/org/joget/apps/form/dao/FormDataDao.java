@@ -1,18 +1,17 @@
 package org.joget.apps.form.dao;
 
-import java.io.IOException;
+import java.math.BigDecimal;
 import org.joget.apps.form.model.Form;
 import org.joget.apps.form.model.FormRow;
 import org.joget.apps.form.model.FormRowSet;
 import java.util.Collection;
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.transform.TransformerException;
-import org.hibernate.HibernateException;
-import org.hibernate.MappingException;
-import org.hibernate.cfg.Configuration;
-import org.w3c.dom.DOMException;
-import org.xml.sax.SAXException;
+import java.util.List;
+import java.util.Map;
 
+/**
+ * Service method used to manage form data
+ * 
+ */
 public interface FormDataDao {
 
     /**
@@ -40,7 +39,7 @@ public interface FormDataDao {
 
     /**
      * Loads a data row for a form based on the primary key. 
-     * This method runs outside of a db transaction, to cater to hibernate's auto schema update requirement.
+     * This method is transactional (since v5), but retains the method name for backward compatibility reasons.
      * @param form
      * @param primaryKey
      * @return 
@@ -49,8 +48,8 @@ public interface FormDataDao {
 
     /**
      * Loads a data row for a form based on the primary key. 
-     * This method runs outside of a db transaction, to cater to hibernate's auto schema update requirement.
-     * @param formDefId
+     * This method is transactional (since v5), but retains the method name for backward compatibility reasons.
+     * @param formDefID
      * @param tableName
      * @param primaryKey
      * @return 
@@ -60,6 +59,7 @@ public interface FormDataDao {
     /**
      * Loads a data row for a table based on the primary key
      * @param tableName
+     * @param columnName is not used
      * @param primaryKey
      * @return null if the row does not exist
      */
@@ -93,6 +93,45 @@ public interface FormDataDao {
     public FormRowSet find(String formDefId, String tableName, final String condition, final Object[] params, final String sort, final Boolean desc, final Integer start, final Integer rows);
 
     /**
+     * Custom Select Query to find a list of matching form rows.
+     * @param form
+     * @param fields
+     * @param alias
+     * @param joins
+     * @param condition
+     * @param params
+     * @param groupBys
+     * @param havingCondition
+     * @param sort
+     * @param havingParams
+     * @param desc
+     * @param start
+     * @param rows
+     * @return
+     */
+    public List<Map<String, Object>> findCustomQuery(Form form, final String[] fields, final String[] alias, final String[] joins, final String condition, final Object[] params, final String[] groupBys, final String havingCondition, final BigDecimal[] havingParams, final String sort, final Boolean desc, final Integer start, final Integer rows);
+
+    /**
+     * Custom Select Query to find a list of matching form rows.
+     * @param formDefId
+     * @param tableName
+     * @param fields
+     * @param alias
+     * @param joins
+     * @param condition
+     * @param params
+     * @param groupBys
+     * @param havingCondition
+     * @param sort
+     * @param havingParams
+     * @param desc
+     * @param start
+     * @param rows
+     * @return
+     */
+    public List<Map<String, Object>> findCustomQuery(String formDefId, String tableName, final String[] fields, final String[] alias, final String[] joins, final String condition, final Object[] params, final String[] groupBys, final String havingCondition, final BigDecimal[] havingParams, final String sort, final Boolean desc, final Integer start, final Integer rows);
+
+    /**
      * Query total row count for a form.
      * @param form
      * @param condition
@@ -103,13 +142,41 @@ public interface FormDataDao {
 
     /**
      * Query total row count for a form.
-     * @param form
+     * @param formDefId
+     * @param tableName
      * @param condition
      * @param params
      * @return
      */
     public Long count(String formDefId, String tableName, final String condition, final Object[] params);
 
+    /**
+     * Query total row count of a Custom Select Query for a form.
+     * @param form
+     * @param joins
+     * @param condition
+     * @param params
+     * @param groupBys
+     * @param havingCondition
+     * @param havingParams
+     * @return
+     */
+    public Long countCustomQuery(Form form, final String[] joins, final String condition, final Object[] params, final String[] groupBys, final String havingCondition, final BigDecimal[] havingParams);
+
+    /**
+     * Query total row count of a Custom Select Query for a form.
+     * @param formDefId
+     * @param tableName
+     * @param joins
+     * @param condition
+     * @param params
+     * @param groupBys
+     * @param havingCondition
+     * @param havingParams
+     * @return
+     */
+    public Long countCustomQuery(String formDefId, String tableName, final String[] joins, final String condition, final Object[] params, final String[] groupBys, final String havingCondition, final BigDecimal[] havingParams);
+    
     /**
      * Query to find find primary key based on a field name and it's value.
      * @param form
@@ -150,18 +217,33 @@ public interface FormDataDao {
     public void updateSchema(Form form, FormRowSet rowSet);
     
     /**
+     * Call Hibernate to update DB schema
+     * @param formDefId
+     * @param tableName
+     * @param rowSet
+     */
+    public void updateSchema(String formDefId, String tableName, FormRowSet rowSet);
+    
+    /**
      * Delete form data by primary keys
      * @param form
      * @param primaryKeyValues 
      */
     public void delete(Form form, String[] primaryKeyValues);
 
-        /**
+    /**
      * Delete form data by primary keys
      * @param form
      * @param primaryKeyValues 
      */
     public void delete(String formDefId, String tableName, String[] primaryKeyValues);
+    
+    /**
+     * Delete form data by rows
+     * @param form
+     * @param primaryKeyValues 
+     */
+    public void delete(String formDefId, String tableName, FormRowSet rows);
 
     /**
      * Gets the generated hibernate entity name for the form
@@ -212,17 +294,4 @@ public interface FormDataDao {
      */
     public String getEntityName(String tableName, String columnName);
 
-    /**
-     * Returns a customized hibernate configuration for the form.
-     * @param config
-     * @return
-     * @throws DOMException
-     * @throws HibernateException
-     * @throws ParserConfigurationException
-     * @throws SAXException
-     * @throws IOException
-     * @throws MappingException
-     * @throws TransformerException
-     */
-    public Configuration customizeConfiguration(Configuration config) throws DOMException, HibernateException, ParserConfigurationException, SAXException, IOException, MappingException, TransformerException;
 }

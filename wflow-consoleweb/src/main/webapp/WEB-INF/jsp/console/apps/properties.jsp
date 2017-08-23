@@ -1,6 +1,7 @@
 <%@ include file="/WEB-INF/jsp/includes/taglibs.jsp" %>
 
-<commons:header />
+<c:set var="title"><fmt:message key="adminBar.label.app"/>: ${appDefinition.name}</c:set>
+<commons:header title="${title}" />
 
 <div id="nav">
     <div id="nav-title">
@@ -17,9 +18,12 @@
     <div id="main-title"></div>
     <div id="main-action">
         <ul id="main-action-buttons">
+            <c:if test="${protectedReadonly != 'true'}">
             <li><button onclick="environmentVariableCreate()"><fmt:message key="console.app.envVariable.create.label"/></button></li>
             <li><button onclick="messageCreate()"><fmt:message key="console.app.message.create.label"/></button></li>
+            <li><button onclick="addResource()"><fmt:message key="console.app.resources.create.label"/></button></li>
             <li><button onclick="defaultPluginPropertiesCreate()"><fmt:message key="console.app.pluginDefault.create.label"/></button></li>
+            </c:if>
             <li><button onclick="exportApp()"><fmt:message key="console.app.export.label"/></button></li>
         </ul>
     </div>
@@ -27,18 +31,27 @@
         <div id="main-body-content">
             <div id="propertiesTab">
                 <ul>
+                    <li><a href="#appDesc"><span><fmt:message key="console.app.common.label.description"/></span></a></li>
                     <li><a href="#variable"><span><fmt:message key="console.app.envVariable.common.label"/></span></a></li>
                     <li><a href="#message"><span><fmt:message key="console.app.message.common.label"/></span></a></li>
+                    <li><a href="#resources"><span><fmt:message key="console.header.submenu.label.resources"/></span></a></li>
                     <li><a href="#pluginDefault"><span><fmt:message key="console.app.pluginDefault.common.label"/></span></a></li>
                 </ul>
                 <div>
+                    <div id="appDesc">
+                        <form method="post" action="${pageContext.request.contextPath}/web/console/app/<c:out value="${appId}"/>/${appVersion}/note/submit">
+                            <textarea id="description" name="description"><c:out value="${appDefinition.description}" escapeXml="true"/></textarea>
+                            <br />
+                            <input type="submit" value="<fmt:message key="general.method.label.submit"/>" class="form-button"/>
+                        </form>
+                    </div>    
                     <div id="variable">
                         <br/>
                         <ui:jsontable url="${pageContext.request.contextPath}/web/json/console/app/${appId}/${appVersion}/envVariable/list?${pageContext.request.queryString}"
                            var="JsonVariableDataTable"
                            divToUpdate="variableList"
                            jsonData="data"
-                           rowsPerPage="10"
+                           rowsPerPage="15"
                            width="100%"
                            sort="id"
                            desc="false"
@@ -47,7 +60,7 @@
                            hrefQuery="false"
                            hrefDialog="true"
                            hrefDialogTitle=""
-                           checkbox="true"
+                           checkbox="${protectedReadonly != 'true'}"
                            checkboxButton1="general.method.label.delete"
                            checkboxCallback1="envVariableDelete"
                            searchItems="filter|Filter"
@@ -75,7 +88,7 @@
                            var="JsonMessageDataTable"
                            divToUpdate="messageList"
                            jsonData="data"
-                           rowsPerPage="10"
+                           rowsPerPage="15"
                            width="100%"
                            sort="messageKey"
                            desc="false"
@@ -84,7 +97,7 @@
                            hrefQuery="true"
                            hrefDialog="true"
                            hrefDialogTitle=""
-                           checkbox="true"
+                           checkbox="${protectedReadonly != 'true'}"
                            checkboxButton1="general.method.label.delete"
                            checkboxCallback1="messageDelete"
                            checkboxButton2="console.app.message.generate.po.label"
@@ -99,6 +112,31 @@
                            column2="{key: 'locale', label: 'console.app.message.common.label.locale', sortable: true}"
                            column3="{key: 'message', label: 'console.app.message.common.label.message', sortable: false}"
                            />
+                    </div>    
+                    <div id="resources">
+                        <br/>
+                        <ui:jsontable url="${pageContext.request.contextPath}/web/json/console/app/${appId}/${appVersion}/resource/list?${pageContext.request.queryString}"
+                            var="JsonResourcesDataTable"
+                            divToUpdate="ResourcesList"
+                            jsonData="data"
+                            rowsPerPage="15"
+                            width="100%"
+                            sort="id"
+                            desc="false"
+                            href="${pageContext.request.contextPath}/web/console/app/${appId}/${appVersion}/resource/permission"
+                            hrefParam="id"
+                            hrefQuery="true"
+                            hrefDialog="true"
+                            hrefDialogTitle=""
+                            checkbox="true"
+                            checkboxButton1="general.method.label.delete"
+                            checkboxCallback1="appResourceDelete"
+                            searchItems="filter|Filter"
+                            fields="['id','filesize','permissionClassLabel']"
+                            column1="{key: 'id', label: 'console.app.resource.common.label.id', sortable: true}"
+                            column2="{key: 'filesize', label: 'console.app.resource.common.label.filesize', sortable: true}"
+                            column3="{key: 'permissionClassLabel', label: 'console.app.resource.common.label.permission', sortable: false}"
+                            />
                     </div>
                     <div id="pluginDefault">
                         <br/>
@@ -106,7 +144,7 @@
                            var="JsonPluginDefaultDataTable"
                            divToUpdate="pluginDefaultList"
                            jsonData="data"
-                           rowsPerPage="10"
+                           rowsPerPage="15"
                            width="100%"
                            sort="id"
                            desc="false"
@@ -115,7 +153,7 @@
                            hrefQuery="true"
                            hrefDialog="true"
                            hrefDialogTitle=""
-                           checkbox="true"
+                           checkbox="${protectedReadonly != 'true'}"
                            checkboxButton1="general.method.label.delete"
                            checkboxCallback1="pluginDefaultDelete"
                            searchItems="filter|Filter"
@@ -141,6 +179,10 @@
         $('#JsonMessageDataTable_searchTerm').hide();
         $('#JsonVariableDataTable_searchTerm').hide();
         $('#JsonPluginDefaultDataTable_searchTerm').hide();
+        $('#JsonResourcesDataTable_searchTerm').hide();
+        <c:if test="${protectedReadonly == 'true'}">
+        $(".ui-tabs-panel button[onclick*='Delete']").hide();
+        </c:if>
     });
 
     <ui:popupdialog var="messageCreateDialog" src="${pageContext.request.contextPath}/web/console/app/${appId}/${appVersion}/message/create"/>
@@ -148,7 +190,8 @@
     <ui:popupdialog var="messageImportDialog" src="${pageContext.request.contextPath}/web/console/app/${appId}/${appVersion}/message/importpo"/>
     <ui:popupdialog var="variableCreateDialog" src="${pageContext.request.contextPath}/web/console/app/${appId}/${appVersion}/envVariable/create"/>
     <ui:popupdialog var="pluginDefaultCreateDialog" src="${pageContext.request.contextPath}/web/console/app/${appId}/${appVersion}/pluginDefault/create"/>
-
+    <ui:popupdialog var="resourceCreateDialog" src="${pageContext.request.contextPath}/web/console/app/${appId}/${appVersion}/resource/create"/>
+    
     function messageCreate(){
         messageCreateDialog.init();
     }
@@ -176,7 +219,7 @@
                     filter(JsonMessageDataTable, '', '');
                 }
             }
-            var request = ConnectionManager.post('${pageContext.request.contextPath}/web/console/app/${appId}/${appVersion}/message/delete', callback, 'ids='+selectedList);
+            var request = ConnectionManager.post('${pageContext.request.contextPath}/web/console/app/<c:out value="${appId}"/>/${appVersion}/message/delete', callback, 'ids='+selectedList);
         }
     }
     
@@ -195,7 +238,7 @@
                     filter(JsonVariableDataTable, '&filter=', $('#JsonVariableDataTable_searchCondition').val());
                 }
             }
-            var request = ConnectionManager.post('${pageContext.request.contextPath}/web/console/app/${appId}/${appVersion}/envVariable/delete', callback, 'ids='+selectedList);
+            var request = ConnectionManager.post('${pageContext.request.contextPath}/web/console/app/<c:out value="${appId}"/>/${appVersion}/envVariable/delete', callback, 'ids='+selectedList);
         }
     }
 
@@ -206,12 +249,27 @@
                     filter(JsonPluginDefaultDataTable, '&filter=', $('#JsonPluginDefaultDataTable_searchCondition').val());
                 }
             }
-            var request = ConnectionManager.post('${pageContext.request.contextPath}/web/console/app/${appId}/${appVersion}/pluginDefault/delete', callback, 'ids='+selectedList);
+            var request = ConnectionManager.post('${pageContext.request.contextPath}/web/console/app/<c:out value="${appId}"/>/${appVersion}/pluginDefault/delete', callback, 'ids='+selectedList);
+        }
+    }
+    
+    function addResource(){
+        resourceCreateDialog.init();
+    }
+    
+    function appResourceDelete(selectedList){
+        if (confirm('<fmt:message key="console.app.resource.delete.label.confirmation"/>')) {
+            var callback = {
+                success : function() {
+                    filter(JsonResourcesDataTable, '&filter=', $('#JsonResourcesDataTable_searchCondition').val());
+                }
+            }
+            var request = ConnectionManager.post('${pageContext.request.contextPath}/web/console/app/<c:out value="${appId}"/>/${appVersion}/resource/delete', callback, 'ids='+selectedList);
         }
     }
 
     function exportApp(){
-        document.location = '${pageContext.request.contextPath}/web/console/app/${appId}/${appVersion}/export';
+        document.location = '${pageContext.request.contextPath}/web/console/app/<c:out value="${appId}"/>/${appVersion}/export';
     }
 
     var org_filter = window.filter;
@@ -226,7 +284,7 @@
 
         org_filter(jsonTable, url, tempValue);
     };
-
+    
     Template.init("#menu-apps", "#nav-app-props");
 </script>
 

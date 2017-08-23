@@ -10,7 +10,6 @@
         label : '@@datalist.hyperlinkdatalistaction.hyperlinkTarget@@',
         name : 'target',
         type : 'selectbox',
-        description : '@@datalist.hyperlinkdatalistaction.hyperlinkTarget.desc@@',
         options : [{
             value : '_self',
             label : '@@datalist.hyperlinkdatalistaction.currentWindow@@'
@@ -20,9 +19,30 @@
             label : '@@datalist.hyperlinkdatalistaction.newWindow@@'
         },
         {
+            value : '_top',
+            label : '@@datalist.hyperlinkdatalistaction.top@@'
+        },
+        {
+            value : '_parent',
+            label : '@@datalist.hyperlinkdatalistaction.parent@@'
+        },
+        {
+            value : 'iframe',
+            label : '@@datalist.hyperlinkdatalistaction.iframe@@'
+        },
+        {
             value : 'popup',
             label : '@@datalist.hyperlinkdatalistaction.popup@@'
         }]
+    },
+    {
+        label : '@@datalist.hyperlinkdatalistaction.iframename@@',
+        name : 'iframename',
+        type : 'textfield',
+        control_field: 'target',
+        control_value: 'iframe',
+        control_use_regex: 'false',
+        required : 'true'
     },
     {
         name : 'parameters',
@@ -34,7 +54,8 @@
         },
         {
             key : 'hrefColumn',
-            label : '@@datalist.hyperlinkdatalistaction.columnName@@'
+            label : '@@datalist.hyperlinkdatalistaction.columnName@@',
+            options_callback : 'DatalistBuilder.getColumnOptions'
         }]
     },
     {
@@ -42,7 +63,8 @@
         name : 'label',
         type : 'textfield',
         description : '@@datalist.hyperlinkdatalistaction.label.desc@@',
-        value : 'Hyperlink'
+        value : 'Hyperlink',
+        required : 'true'
     },
     {
         label : '@@datalist.hyperlinkdatalistaction.confirmationMessage@@',
@@ -55,6 +77,9 @@
         type : 'checkbox',
         options : [
             {'value' : 'true', 'label' : ''}
-        ]
+        ],
+        control_field: 'datalist_type',
+        control_value: 'action',
+        control_use_regex: 'false'
     }]
 }]
